@@ -5,73 +5,97 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Block Builder</title>
 <style>
-  :root { color-scheme: dark; }
+  :root { color-scheme: dark; --panel: rgba(22,27,34,0.78); --line: rgba(255,255,255,0.08); --accent: #fbbf24; }
   html, body { margin: 0; height: 100%; color: #e6edf3;
     font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; overflow: hidden;
-    background: linear-gradient(180deg, #1d2433 0%, #0e1116 100%); }
-  #ui {
-    position: fixed; top: 12px; left: 12px; z-index: 2;
-    background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 10px;
-    padding: 10px 12px; backdrop-filter: blur(6px); max-width: 320px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    background: #0e1116; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
   }
-  #ui h1 { font-size: 14px; margin: 0 0 6px; font-weight: 700; letter-spacing: 0.01em; }
+  #ui { position: fixed; top: 14px; left: 14px; z-index: 2; max-width: 340px;
+    transition: opacity 0.25s, transform 0.25s; }
+  #ui h1 { font-size: 15px; margin: 0 0 6px; font-weight: 800; letter-spacing: 0.02em;
+    background: linear-gradient(90deg, #fbbf24, #f472b6, #60a5fa);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
   #ui p { margin: 4px 0; color: #9da7b3; font-size: 12px; }
-  #palette { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .sw { width: 22px; height: 22px; border-radius: 4px; cursor: pointer;
-    border: 2px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.4); transition: transform 0.1s; }
-  .sw:hover { transform: scale(1.1); }
-  .sw.active { border-color: #ffffff; }
-  #actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  #ui kbd { background: #161b22; border: 1px solid #30363d; border-bottom-width: 2px;
+    border-radius: 4px; padding: 1px 5px; font: 11px/1 ui-monospace, monospace; color: #c9d1d9; }
+  #palette { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .sw { width: 26px; height: 26px; border-radius: 6px; cursor: pointer; position: relative;
+    border: 2px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.5), inset 0 -3px 0 rgba(0,0,0,0.2);
+    transition: transform 0.12s ease-out, box-shadow 0.12s; }
+  .sw:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 -3px 0 rgba(0,0,0,0.2); }
+  .sw.active { border-color: #ffffff; transform: translateY(-1px); }
+  .sw::after { content: attr(data-n); position: absolute; bottom: -1px; right: 2px;
+    color: rgba(0,0,0,0.55); font: 700 9px/1 ui-monospace, monospace; }
+  #actions { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
   button { background: #21262d; color: #e6edf3; border: 1px solid #30363d;
-    padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit;
-    transition: background 0.1s, transform 0.05s; }
-  button:hover { background: #30363d; }
+    padding: 7px 11px; border-radius: 7px; cursor: pointer; font: inherit;
+    transition: background 0.12s, transform 0.05s, box-shadow 0.12s; }
+  button:hover { background: #30363d; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
   button:active { transform: translateY(1px); }
-  button.primary { background: #238636; border-color: #2ea043; }
-  button.primary:hover { background: #2ea043; }
-  #hint { position: fixed; bottom: 12px; left: 12px; z-index: 2;
+  button.primary { background: linear-gradient(180deg, #2ea043, #238636); border-color: #2ea043;
+    box-shadow: 0 2px 0 #1a6c2c, 0 4px 10px rgba(35,134,54,0.3); }
+  button.primary:hover { background: linear-gradient(180deg, #34c44a, #2ea043); }
+  button.primary:active { box-shadow: 0 1px 0 #1a6c2c; }
+  #hint { position: fixed; bottom: 14px; left: 14px; z-index: 2;
     color: #6e7681; font-size: 12px; }
   #hud {
-    position: fixed; top: 12px; right: 12px; z-index: 2;
-    background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 10px;
-    padding: 10px 14px; font-size: 13px; display: none; min-width: 160px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    position: fixed; top: 14px; right: 14px; z-index: 2;
+    font-size: 13px; display: none; min-width: 200px;
+    animation: slideIn 0.3s ease-out;
   }
-  #hud .label { color: #9da7b3; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-  #hud .val { font-size: 22px; font-weight: 700; }
-  #hud .row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; gap: 12px; }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #hud .label { color: #9da7b3; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  #hud .val { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  #hud .row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; gap: 14px; }
   #hud .row:first-child { margin-top: 0; }
-  #hud .sub { color: #6e7681; font-size: 12px; }
-  #hud .pop { animation: pop 0.25s ease-out; }
-  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.25); color: #fbbf24; } 100% { transform: scale(1); } }
-  #gameover {
+  #hud .sub { color: #8b949e; font-size: 12px; font-variant-numeric: tabular-nums; }
+  #hud .pop { animation: pop 0.3s ease-out; }
+  @keyframes pop { 0% { transform: scale(1); } 35% { transform: scale(1.3); color: var(--accent); } 100% { transform: scale(1); } }
+  #hud .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); margin-top: 10px; overflow: hidden; }
+  #hud .bar > i { display: block; height: 100%; background: linear-gradient(90deg, #34d399, #fbbf24, #f87171);
+    transition: width 0.3s ease; transform-origin: left; width: 100%; }
+  #gameover, #titleScreen, #pauseScreen {
     position: fixed; inset: 0; z-index: 3; display: none;
-    align-items: center; justify-content: center; background: rgba(0,0,0,0.6);
+    align-items: center; justify-content: center; background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
   }
-  #gameover .box {
-    background: #161b22; border: 1px solid #30363d; border-radius: 14px;
-    padding: 26px 30px; text-align: center; min-width: 260px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-    animation: rise 0.25s ease-out;
+  #gameover .box, #titleScreen .box, #pauseScreen .box {
+    background: #161b22; border: 1px solid #30363d; border-radius: 16px;
+    padding: 28px 34px; text-align: center; min-width: 280px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    animation: rise 0.3s cubic-bezier(.16,1,.3,1);
   }
-  @keyframes rise { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
-  #gameover h2 { margin: 0 0 8px; font-size: 22px; }
-  #gameover p { margin: 0 0 16px; color: #9da7b3; }
-  #gameover .score-line { font-size: 16px; color: #fbbf24; margin: 4px 0 14px; font-weight: 600; }
+  @keyframes rise { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
+  #gameover h2, #titleScreen h2, #pauseScreen h2 { margin: 0 0 8px; font-size: 24px; font-weight: 800; }
+  #gameover p, #titleScreen p, #pauseScreen p { margin: 0 0 16px; color: #9da7b3; }
+  #gameover .score-line { font-size: 18px; color: var(--accent); margin: 4px 0 16px; font-weight: 700;
+    font-variant-numeric: tabular-nums; }
+  #titleScreen h2 { font-size: 28px;
+    background: linear-gradient(90deg, #fbbf24, #f472b6, #60a5fa);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #titleScreen .kbds { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 14px 0 18px; text-align: left; font-size: 13px; }
+  #titleScreen .kbds span:first-child { color: #c9d1d9; font-family: ui-monospace, monospace; }
+  #titleScreen .kbds span:last-child { color: #8b949e; }
   canvas { display: block; cursor: crosshair; }
   body.play canvas { cursor: default; }
   body.shake { animation: shake 0.4s ease-out; }
   @keyframes shake { 0%, 100% { transform: translateX(0); }
     20% { transform: translateX(-6px); } 40% { transform: translateX(5px); }
     60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+  .pulse { animation: pulse 2.2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
+  .fade-out { opacity: 0; transform: translateY(-6px); pointer-events: none; }
 </style>
 </head>
 <body>
 
-<div id="ui">
+<div id="ui" class="panel">
   <h1>Block Builder</h1>
-  <p id="modeHelp">Left-click: place. Right-click: remove. Drag: pan. Wheel: zoom. 1–7: color. R: rotate.</p>
+  <p id="modeHelp">Left-click to place, right-click to remove. Drag to pan, wheel to zoom. <kbd>1</kbd>–<kbd>7</kbd> color, <kbd>R</kbd> rotate.</p>
   <div id="palette"></div>
   <div id="actions">
     <button id="playBtn" class="primary">Play</button>
@@ -81,7 +105,7 @@
   </div>
 </div>
 
-<div id="hud">
+<div id="hud" class="panel">
   <div class="row"><div>
     <div class="label">Score</div>
     <div class="val" id="score">0</div>
@@ -89,8 +113,34 @@
     <div class="label">Best</div>
     <div class="val" id="best">0</div>
   </div></div>
-  <div class="row"><div class="sub">Time: <span id="elapsed">0</span>s</div>
-    <div class="sub">Walls: <span id="walls">0</span></div>
+  <div class="row"><div class="sub">Time <span id="elapsed">0</span>s</div>
+    <div class="sub">Walls <span id="walls">0</span></div>
+    <div class="sub">Arena <span id="arena">12</span></div>
+  </div>
+  <div class="bar" title="Arena radius"><i id="arenaBar"></i></div>
+</div>
+
+<div id="titleScreen">
+  <div class="box">
+    <h2>Block Builder</h2>
+    <p>Build freely or hit Play to survive.</p>
+    <div class="kbds">
+      <span>← ↑ → ↓</span><span>move</span>
+      <span>Space</span><span>pause</span>
+      <span>M</span><span>toggle sound</span>
+      <span>Esc</span><span>back to build</span>
+    </div>
+    <button id="titleStart" class="primary">Start</button>
+    <button id="titleClose">Just build</button>
+  </div>
+</div>
+
+<div id="pauseScreen">
+  <div class="box">
+    <h2>Paused</h2>
+    <p>Press Space to resume.</p>
+    <button id="pauseResume" class="primary">Resume</button>
+    <button id="pauseQuit">Quit to build</button>
   </div>
 </div>
 
@@ -473,26 +523,73 @@
     }
   }
 
-  // -------- Sky clouds (background) --------
+  // -------- Animated sky background --------
+  // Drifting clouds + a slow aurora breathe. Tasteful, not distracting.
   const clouds = [];
-  for (let i = 0; i < 8; i++) clouds.push({ x: Math.random(), y: 0.05 + Math.random() * 0.35, r: 0.04 + Math.random() * 0.05, s: 0.005 + Math.random() * 0.008 });
-
+  for (let i = 0; i < 7; i++) clouds.push({
+    x: Math.random(),
+    y: 0.05 + Math.random() * 0.32,
+    r: 0.035 + Math.random() * 0.045,
+    speed: 0.004 + Math.random() * 0.006,  // fraction of width per second
+    opacity: 0.05 + Math.random() * 0.04,
+  });
+  const stars = [];
+  for (let i = 0; i < 40; i++) stars.push({
+    x: Math.random(),
+    y: Math.random() * 0.5,
+    r: 0.4 + Math.random() * 1.0,
+    phase: Math.random() * Math.PI * 2,
+    speed: 0.5 + Math.random(),
+  });
+  let bgT = 0;
+  function updateBackground(dt) {
+    bgT += dt;
+    for (const c of clouds) {
+      c.x += c.speed * dt;
+      if (c.x > 1.1) c.x = -0.15;
+    }
+  }
   function drawSky() {
-    // gradient over the canvas
+    // base gradient with a very subtle hue breathe
+    const breathe = Math.sin(bgT * 0.25) * 0.5 + 0.5; // 0..1
+    const top1 = `rgb(${Math.round(48 + breathe * 14)}, ${Math.round(70 + breathe * 6)}, ${Math.round(110 + breathe * 12)})`;
+    const top2 = `rgb(${Math.round(40 + breathe * 6)}, ${Math.round(48 + breathe * 4)}, ${Math.round(72 + breathe * 8)})`;
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#3b4d73');
-    g.addColorStop(0.55, '#1d2433');
+    g.addColorStop(0, top1);
+    g.addColorStop(0.35, top2);
+    g.addColorStop(0.7, '#1a2030');
     g.addColorStop(1, '#0e1116');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+
+    // aurora — very low-opacity moving radial wash
+    const ax = (Math.sin(bgT * 0.13) * 0.5 + 0.5) * W;
+    const ay = H * 0.28 + Math.sin(bgT * 0.07) * 40;
+    const rg = ctx.createRadialGradient(ax, ay, 0, ax, ay, Math.max(W, H) * 0.6);
+    rg.addColorStop(0, 'rgba(167, 139, 250, 0.10)');
+    rg.addColorStop(0.5, 'rgba(96, 165, 250, 0.05)');
+    rg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, W, H);
+
+    // stars (subtle twinkle)
+    for (const s of stars) {
+      const tw = 0.4 + 0.6 * (Math.sin(bgT * s.speed + s.phase) * 0.5 + 0.5);
+      ctx.fillStyle = `rgba(255,255,255,${0.18 * tw})`;
+      ctx.beginPath();
+      ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // clouds
     for (const c of clouds) {
       const cx = c.x * W, cy = c.y * H;
-      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillStyle = `rgba(255,255,255,${c.opacity})`;
       ctx.beginPath();
       ctx.arc(cx,           cy,           c.r * H, 0, Math.PI * 2);
       ctx.arc(cx + c.r*H,   cy - c.r*H*0.2, c.r * H * 0.8, 0, Math.PI * 2);
       ctx.arc(cx - c.r*H,   cy - c.r*H*0.2, c.r * H * 0.8, 0, Math.PI * 2);
+      ctx.arc(cx + c.r*H*1.6,cy + c.r*H*0.1, c.r * H * 0.65, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -630,11 +727,20 @@
     sfx.step();
   }
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'm' || e.key === 'M') {
+      audioOn = !audioOn;
+      muteBtn.textContent = `Sound: ${audioOn ? 'on' : 'off'}`;
+      if (audioOn) ensureAudio();
+      return;
+    }
     if (mode === 'build') {
       if (e.key >= '1' && e.key <= '7') { active = parseInt(e.key,10)-1; renderPalette(); }
       else if (e.key === 'r' || e.key === 'R') { rot = (rot+1)%4; draw(); }
       return;
     }
+    if (e.key === 'Escape') { e.preventDefault(); enterBuild(); return; }
+    if (e.key === ' ') { e.preventDefault(); togglePause(); return; }
+    if (paused) return;
     if (e.key === 'ArrowUp')    { e.preventDefault(); tryStepPlayer(0, -1); }
     if (e.key === 'ArrowDown')  { e.preventDefault(); tryStepPlayer(0,  1); }
     if (e.key === 'ArrowLeft')  { e.preventDefault(); tryStepPlayer(-1, 0); }
@@ -649,6 +755,7 @@
       const el = document.createElement('div');
       el.className = 'sw' + (i === active ? ' active' : '');
       el.style.background = c;
+      el.dataset.n = String(i + 1);
       el.onclick = () => { active = i; renderPalette(); };
       palette.appendChild(el);
     });
@@ -670,12 +777,16 @@
   const goSec = document.getElementById('goSec');
 
   let mode = 'build';
+  let paused = false;
   let gameStart = 0, lastBlockSpawn = 0, lastT = 0;
+  let pauseStart = 0;
   let spawnInterval = 950;
   let safeRadius = GRID;
   let lastEdgeShrink = 0;
   let score = 0, wallsPlaced = 0;
   let best = parseInt(localStorage.getItem('cce_best') || '0', 10) || 0;
+  const arenaEl = document.getElementById('arena');
+  const arenaBar = document.getElementById('arenaBar');
   bestEl.textContent = best;
 
   function flashScore() {
@@ -717,6 +828,10 @@
     monster.moving = false; monster.stepCooldown = 0; monster.bobT = 0;
     score = 0; wallsPlaced = 0;
     scoreEl.textContent = '0'; elapsedEl.textContent = '0'; wallsEl.textContent = '0';
+    arenaEl.textContent = String(safeRadius);
+    arenaBar.style.width = '100%';
+    paused = false;
+    pauseScreen.style.display = 'none';
 
     gameStart = performance.now();
     lastBlockSpawn = gameStart;
@@ -733,7 +848,7 @@
     gameover.style.display = 'none';
     buildGround();
   }
-  playBtn.onclick = () => { mode === 'build' ? enterPlay() : enterBuild(); };
+  playBtn.onclick = () => { titleScreen && (titleScreen.style.display = 'none'); mode === 'build' ? enterPlay() : enterBuild(); };
   document.getElementById('clear').onclick = () => { buildGround(); draw(); };
   document.getElementById('save').onclick = () => {
     const url = canvas.toDataURL('image/png');
@@ -748,6 +863,35 @@
     muteBtn.textContent = `Sound: ${audioOn ? 'on' : 'off'}`;
     if (audioOn) ensureAudio();
   };
+
+  // Title screen
+  const titleScreen = document.getElementById('titleScreen');
+  const pauseScreen = document.getElementById('pauseScreen');
+  document.getElementById('titleStart').onclick = () => { titleScreen.style.display = 'none'; enterPlay(); };
+  document.getElementById('titleClose').onclick = () => { titleScreen.style.display = 'none'; };
+  document.getElementById('pauseResume').onclick = () => togglePause(false);
+  document.getElementById('pauseQuit').onclick = () => { togglePause(false); enterBuild(); };
+  // Show once on first load
+  if (!localStorage.getItem('cce_seen_title')) {
+    titleScreen.style.display = 'flex';
+    localStorage.setItem('cce_seen_title', '1');
+  }
+
+  function togglePause(force) {
+    if (mode !== 'play' || !player.alive) return;
+    const next = (force == null) ? !paused : force;
+    if (next === paused) return;
+    paused = next;
+    if (paused) {
+      pauseStart = performance.now();
+      pauseScreen.style.display = 'flex';
+    } else {
+      // shift gameStart by paused duration so elapsed/spawn intervals don't jump
+      const dt = performance.now() - pauseStart;
+      gameStart += dt; lastBlockSpawn += dt; lastMazeAt += dt; lastEdgeShrink += dt;
+      pauseScreen.style.display = 'none';
+    }
+  }
 
   function endGame(reason) {
     player.alive = false;
@@ -777,15 +921,45 @@
     falling.push({ x, y, z: 12, ci });
   }
 
+  // BFS reachability around the player to keep a healthy open area
+  function reachableTilesFromPlayer(blockedExtra) {
+    const px = Math.round(player.x), py = Math.round(player.y);
+    const seen = new Set();
+    const q = [[px, py]];
+    seen.add(`${px},${py}`);
+    let count = 0;
+    while (q.length && count < 80) {
+      const [x, y] = q.shift();
+      count++;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = x + dx, ny = y + dy;
+        const k2 = `${nx},${ny}`;
+        if (seen.has(k2)) continue;
+        if (!inBoundsTile(nx, ny)) continue;
+        if (Math.abs(nx) > safeRadius || Math.abs(ny) > safeRadius) continue;
+        if (isWallTile(nx, ny)) continue;
+        if (blockedExtra && blockedExtra.x === nx && blockedExtra.y === ny) continue;
+        if (!blocks.has(key(nx, ny, -1))) continue;
+        seen.add(k2);
+        q.push([nx, ny]);
+      }
+    }
+    return count;
+  }
+
   function placeMazeWall() {
-    while (mazeQueue.length) {
+    let tried = 0;
+    while (mazeQueue.length && tried < 6) {
       const [x, y] = mazeQueue.shift();
+      tried++;
       if (!inBoundsTile(x, y)) continue;
       if (Math.abs(x) > safeRadius || Math.abs(y) > safeRadius) continue;
       if (blocks.has(key(x, y, 0))) continue;
-      // don't trap player on a 1-tile peninsula
       if (Math.round(player.x) === x && Math.round(player.y) === y) continue;
       if (Math.round(monster.x) === x && Math.round(monster.y) === y) continue;
+      // skip if it would shrink the player's reachable area below a threshold
+      const reach = reachableTilesFromPlayer({ x, y });
+      if (reach < 16) { mazeQueue.push([x, y]); continue; }
       setBlock(x, y, 0, WALL_CI, { wall: true, pop: true });
       wallsPlaced++;
       wallsEl.textContent = wallsPlaced;
@@ -946,6 +1120,8 @@
     if (now - lastEdgeShrink > 9000) {
       shrinkEdges(now);
       lastEdgeShrink = now;
+      arenaEl.textContent = String(safeRadius);
+      arenaBar.style.width = `${Math.max(0, (safeRadius / GRID) * 100)}%`;
     }
 
     // Falling block spawn
@@ -985,7 +1161,8 @@
     if (!lastT) lastT = t;
     const dt = Math.min(0.05, (t - lastT) / 1000);
     lastT = t;
-    update(dt, t);
+    updateBackground(dt);
+    if (!paused) update(dt, t);
     draw();
     requestAnimationFrame(tick);
   }
