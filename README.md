@@ -1,10 +1,10 @@
 # collective-coding-experiment
 
-A tiny isometric block-building toy with a dodge-the-falling-blocks game mode.
+A small isometric block-builder with a survival game mode.
 
 Play it: https://mikeishiringbot-del.github.io/collective-coding-experiment/
 
-## Build mode (default)
+## Build mode
 
 - Left-click: place a block on top of the picked tile
 - Right-click: remove the picked block
@@ -15,15 +15,18 @@ Play it: https://mikeishiringbot-del.github.io/collective-coding-experiment/
 
 ## Play mode
 
-Hit **Play**. A blue player appears on the field, a purple monster prowls,
-and blocks rain from the sky.
+Hit **Play**. You appear as a small blocky character; a purple monster prowls the field.
 
-- Arrow keys: move one tile at a time
-- Dodge falling blocks — a red shadow shows where each one will land
-- Don't let the monster catch you (it growls when it's close)
-- Score = seconds survived
+- Arrow keys: move one tile at a time (with bob and squash animations)
+- A maze grows around you over time — walls block movement
+- The outermost ring of tiles slowly crumbles and falls away, shrinking the arena
+- Blocks rain from the sky — a red shadow marks each landing tile so you can dodge
+- Land a block on the tile next to you for a +25 dodge bonus
+- The monster chases you and growls when it's close
+- Falling off the edge, eating a block, or getting caught ends the run
+- Best score is saved to localStorage
 
-Synthesized sound effects via Web Audio API; toggle with the **Sound** button.
+Score = time × 10 + dodge bonuses. Synthesized sounds via Web Audio API; toggle with the **Sound** button.
 
 ## Running locally
 

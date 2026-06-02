@@ -6,46 +6,65 @@
 <title>Block Builder</title>
 <style>
   :root { color-scheme: dark; }
-  html, body { margin: 0; height: 100%; background: #0e1116; color: #e6edf3;
-    font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; overflow: hidden; }
+  html, body { margin: 0; height: 100%; color: #e6edf3;
+    font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; overflow: hidden;
+    background: linear-gradient(180deg, #1d2433 0%, #0e1116 100%); }
   #ui {
     position: fixed; top: 12px; left: 12px; z-index: 2;
-    background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 8px;
-    padding: 10px 12px; backdrop-filter: blur(6px); max-width: 300px;
+    background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 10px;
+    padding: 10px 12px; backdrop-filter: blur(6px); max-width: 320px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   }
-  #ui h1 { font-size: 14px; margin: 0 0 6px; font-weight: 600; }
+  #ui h1 { font-size: 14px; margin: 0 0 6px; font-weight: 700; letter-spacing: 0.01em; }
   #ui p { margin: 4px 0; color: #9da7b3; font-size: 12px; }
   #palette { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .sw { width: 22px; height: 22px; border-radius: 4px; cursor: pointer;
-    border: 2px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+    border: 2px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.4); transition: transform 0.1s; }
+  .sw:hover { transform: scale(1.1); }
   .sw.active { border-color: #ffffff; }
   #actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
   button { background: #21262d; color: #e6edf3; border: 1px solid #30363d;
-    padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit; }
+    padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit;
+    transition: background 0.1s, transform 0.05s; }
   button:hover { background: #30363d; }
+  button:active { transform: translateY(1px); }
   button.primary { background: #238636; border-color: #2ea043; }
   button.primary:hover { background: #2ea043; }
   #hint { position: fixed; bottom: 12px; left: 12px; z-index: 2;
     color: #6e7681; font-size: 12px; }
   #hud {
     position: fixed; top: 12px; right: 12px; z-index: 2;
-    background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 8px;
-    padding: 10px 14px; font-size: 13px; display: none;
+    background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 10px;
+    padding: 10px 14px; font-size: 13px; display: none; min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   }
   #hud .label { color: #9da7b3; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-  #hud .val { font-size: 18px; font-weight: 600; }
+  #hud .val { font-size: 22px; font-weight: 700; }
+  #hud .row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; gap: 12px; }
+  #hud .row:first-child { margin-top: 0; }
+  #hud .sub { color: #6e7681; font-size: 12px; }
+  #hud .pop { animation: pop 0.25s ease-out; }
+  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.25); color: #fbbf24; } 100% { transform: scale(1); } }
   #gameover {
     position: fixed; inset: 0; z-index: 3; display: none;
     align-items: center; justify-content: center; background: rgba(0,0,0,0.6);
   }
   #gameover .box {
-    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-    padding: 24px 28px; text-align: center; min-width: 240px;
+    background: #161b22; border: 1px solid #30363d; border-radius: 14px;
+    padding: 26px 30px; text-align: center; min-width: 260px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    animation: rise 0.25s ease-out;
   }
-  #gameover h2 { margin: 0 0 8px; font-size: 20px; }
+  @keyframes rise { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #gameover h2 { margin: 0 0 8px; font-size: 22px; }
   #gameover p { margin: 0 0 16px; color: #9da7b3; }
+  #gameover .score-line { font-size: 16px; color: #fbbf24; margin: 4px 0 14px; font-weight: 600; }
   canvas { display: block; cursor: crosshair; }
   body.play canvas { cursor: default; }
+  body.shake { animation: shake 0.4s ease-out; }
+  @keyframes shake { 0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); } 40% { transform: translateX(5px); }
+    60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
 </style>
 </head>
 <body>
@@ -58,19 +77,28 @@
     <button id="playBtn" class="primary">Play</button>
     <button id="clear">Clear</button>
     <button id="save">Save PNG</button>
-    <button id="muteBtn" title="Toggle sound">Sound: on</button>
+    <button id="muteBtn">Sound: on</button>
   </div>
 </div>
 
 <div id="hud">
-  <div class="label">Survived</div>
-  <div class="val"><span id="score">0</span>s</div>
+  <div class="row"><div>
+    <div class="label">Score</div>
+    <div class="val" id="score">0</div>
+  </div><div>
+    <div class="label">Best</div>
+    <div class="val" id="best">0</div>
+  </div></div>
+  <div class="row"><div class="sub">Time: <span id="elapsed">0</span>s</div>
+    <div class="sub">Walls: <span id="walls">0</span></div>
+  </div>
 </div>
 
 <div id="gameover">
   <div class="box">
     <h2 id="goTitle">Game Over</h2>
     <p id="goSub">A block landed on you.</p>
+    <div class="score-line"><span id="goScore">0</span> points — <span id="goSec">0</span>s</div>
     <button id="goAgain" class="primary">Play again</button>
     <button id="goBuild">Back to build</button>
   </div>
@@ -86,40 +114,39 @@
   const ctx = canvas.getContext('2d');
   let W = 0, H = 0, dpr = window.devicePixelRatio || 1;
 
-  const TILE = 48;
-  const HEIGHT = 28;
-  const GRID = 12;
-  let zoom = 1;
-  let camX = 0, camY = 0;
-  let rot = 0;
+  const TILE = 48, HEIGHT = 28, GRID = 12;
+  let zoom = 1, camX = 0, camY = 0, rot = 0;
 
   const COLORS = ['#f87171','#fbbf24','#34d399','#60a5fa','#a78bfa','#f472b6','#e5e7eb'];
+  const WALL_CI = 4; // purple wall
   let active = 2;
 
+  // blocks: Map "x,y,z" -> { ci, born, wall, popT }
   const blocks = new Map();
   const key = (x,y,z) => `${x},${y},${z}`;
-  const heightAt = (x,y) => {
-    let h = 0;
-    while (blocks.has(key(x,y,h))) h++;
-    return h;
-  };
-  const inBounds = (x,y) => x >= -GRID && x <= GRID && y >= -GRID && y <= GRID;
+  function setBlock(x, y, z, ci, opts = {}) {
+    blocks.set(key(x,y,z), { ci, born: performance.now(), wall: !!opts.wall, popT: opts.pop ? 1 : 0 });
+  }
+  function delBlock(x, y, z) { blocks.delete(key(x,y,z)); }
+  function getBlock(x, y, z) { return blocks.get(key(x,y,z)); }
+  const heightAt = (x,y) => { let h = 0; while (blocks.has(key(x,y,h))) h++; return h; };
+  const isWallTile = (x, y) => !!(blocks.get(key(x,y,0)) && blocks.get(key(x,y,0)).wall);
+  const inBoundsTile = (x,y) => x >= -GRID && x <= GRID && y >= -GRID && y <= GRID;
 
   function buildGround() {
     blocks.clear();
     for (let x = -GRID; x <= GRID; x++)
       for (let y = -GRID; y <= GRID; y++)
-        blocks.set(key(x,y,-1), 6);
+        setBlock(x, y, -1, 6);
   }
   buildGround();
 
   function rotated(x, y) {
-    switch (((rot % 4) + 4) % 4) {
-      case 0: return [x, y];
-      case 1: return [-y, x];
-      case 2: return [-x, -y];
-      case 3: return [y, -x];
-    }
+    const r = ((rot % 4) + 4) % 4;
+    if (r === 0) return [x, y];
+    if (r === 1) return [-y, x];
+    if (r === 2) return [-x, -y];
+    return [y, -x];
   }
 
   function worldToScreen(x, y, z) {
@@ -137,12 +164,17 @@
     return `rgb(${f(r)},${f(g)},${f(b)})`;
   }
 
-  function drawBlock(x, y, z, ci) {
+  // -------- Block rendering with brick-style detail and stud on top --------
+  function drawBlock(x, y, z, ci, opts = {}) {
     const color = COLORS[ci];
-    const [tx, ty] = worldToScreen(x, y, z + 1);
-    const w = (TILE/2) * zoom, h = (TILE/4) * zoom, vh = HEIGHT * zoom;
+    const scale = opts.scale != null ? opts.scale : 1;
+    const yOff = opts.yOff || 0;
+    const [tx0, ty0] = worldToScreen(x, y, z + 1);
+    const tx = tx0, ty = ty0 + yOff;
+    const w = (TILE/2) * zoom * scale, h = (TILE/4) * zoom * scale, vh = HEIGHT * zoom * scale;
 
-    ctx.fillStyle = shade(color, 1.0);
+    // top face
+    ctx.fillStyle = shade(color, 1.05);
     ctx.beginPath();
     ctx.moveTo(tx, ty);
     ctx.lineTo(tx + w, ty + h);
@@ -150,6 +182,7 @@
     ctx.lineTo(tx - w, ty + h);
     ctx.closePath(); ctx.fill();
 
+    // left face
     ctx.fillStyle = shade(color, 0.7);
     ctx.beginPath();
     ctx.moveTo(tx - w, ty + h);
@@ -158,6 +191,7 @@
     ctx.lineTo(tx - w, ty + h + vh);
     ctx.closePath(); ctx.fill();
 
+    // right face
     ctx.fillStyle = shade(color, 0.55);
     ctx.beginPath();
     ctx.moveTo(tx + w, ty + h);
@@ -166,7 +200,31 @@
     ctx.lineTo(tx + w, ty + h + vh);
     ctx.closePath(); ctx.fill();
 
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    // brick seam on side faces
+    if (zoom > 0.6) {
+      ctx.strokeStyle = `rgba(0,0,0,0.18)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(tx - w, ty + h + vh*0.5);
+      ctx.lineTo(tx, ty + 2*h + vh*0.5);
+      ctx.lineTo(tx + w, ty + h + vh*0.5);
+      ctx.stroke();
+    }
+
+    // stud on top — the "lego" feel
+    if (zoom > 0.5) {
+      ctx.fillStyle = shade(color, 1.18);
+      const studR = 6 * zoom * scale;
+      ctx.beginPath();
+      ctx.ellipse(tx, ty + h, studR, studR * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(0,0,0,0.25)`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // outline
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(tx, ty); ctx.lineTo(tx + w, ty + h);
@@ -175,7 +233,7 @@
     ctx.stroke();
   }
 
-  // -------- Audio (Web Audio synth, no asset files) --------
+  // -------- Audio --------
   let ac = null, masterGain = null, audioOn = true;
   function ensureAudio() {
     if (ac) return;
@@ -186,11 +244,10 @@
       masterGain.connect(ac.destination);
     } catch { ac = null; }
   }
-  function envOsc({ type = 'sine', freq = 440, freqEnd = null, dur = 0.1, vol = 0.5, attack = 0.005, release = 0.08 }) {
+  function envOsc({ type='sine', freq=440, freqEnd=null, dur=0.1, vol=0.5, attack=0.005, release=0.08 }) {
     if (!audioOn || !ac) return;
     const t0 = ac.currentTime;
-    const osc = ac.createOscillator();
-    const g = ac.createGain();
+    const osc = ac.createOscillator(), g = ac.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t0);
     if (freqEnd != null) osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), t0 + dur);
@@ -198,10 +255,9 @@
     g.gain.linearRampToValueAtTime(vol, t0 + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + release);
     osc.connect(g).connect(masterGain);
-    osc.start(t0);
-    osc.stop(t0 + dur + release + 0.02);
+    osc.start(t0); osc.stop(t0 + dur + release + 0.02);
   }
-  function envNoise({ dur = 0.1, vol = 0.4, lowpass = 2000, release = 0.06 }) {
+  function envNoise({ dur=0.1, vol=0.4, lowpass=2000, release=0.06 }) {
     if (!audioOn || !ac) return;
     const t0 = ac.currentTime;
     const len = Math.max(1, Math.floor(ac.sampleRate * (dur + release)));
@@ -217,39 +273,125 @@
     src.start(t0); src.stop(t0 + dur + release + 0.02);
   }
   const sfx = {
-    place:  () => { envOsc({ type: 'square', freq: 520, freqEnd: 380, dur: 0.06, vol: 0.18 }); },
-    remove: () => { envOsc({ type: 'square', freq: 240, freqEnd: 160, dur: 0.07, vol: 0.16 }); },
-    step:   () => { envOsc({ type: 'sine',   freq: 180, freqEnd: 110, dur: 0.05, vol: 0.22 });
-                    envNoise({ dur: 0.04, vol: 0.08, lowpass: 1200 }); },
-    land:   () => { envOsc({ type: 'sine',   freq: 120, freqEnd: 60,  dur: 0.12, vol: 0.35 });
-                    envNoise({ dur: 0.08, vol: 0.18, lowpass: 800 }); },
-    growl:  () => { envOsc({ type: 'sawtooth', freq: 90, freqEnd: 55, dur: 0.45, vol: 0.18 });
-                    envOsc({ type: 'sawtooth', freq: 65, freqEnd: 40, dur: 0.5, vol: 0.12 }); },
-    over:   () => { envOsc({ type: 'triangle', freq: 440, freqEnd: 110, dur: 0.5, vol: 0.3, release: 0.2 });
-                    envOsc({ type: 'square',  freq: 220, freqEnd:  55, dur: 0.6, vol: 0.18, release: 0.25 }); },
-    start:  () => { envOsc({ type: 'square', freq: 392, dur: 0.08, vol: 0.18 });
-                    setTimeout(() => envOsc({ type: 'square', freq: 587, dur: 0.12, vol: 0.2 }), 70); },
+    place:  () => envOsc({ type:'square', freq:520, freqEnd:380, dur:0.06, vol:0.18 }),
+    remove: () => envOsc({ type:'square', freq:240, freqEnd:160, dur:0.07, vol:0.16 }),
+    step:   () => { envOsc({ type:'sine', freq:200, freqEnd:130, dur:0.05, vol:0.18 });
+                    envNoise({ dur:0.04, vol:0.06, lowpass:1200 }); },
+    hop:    () => { envOsc({ type:'square', freq:660, dur:0.04, vol:0.1 });
+                    setTimeout(() => envOsc({ type:'square', freq:880, dur:0.04, vol:0.1 }), 40); },
+    wall:   () => { envOsc({ type:'triangle', freq:180, freqEnd:90, dur:0.08, vol:0.18 });
+                    envNoise({ dur:0.06, vol:0.12, lowpass:600 }); },
+    land:   () => { envOsc({ type:'sine', freq:120, freqEnd:60, dur:0.12, vol:0.3 });
+                    envNoise({ dur:0.08, vol:0.16, lowpass:800 }); },
+    growl:  () => { envOsc({ type:'sawtooth', freq:90, freqEnd:55, dur:0.45, vol:0.16 });
+                    envOsc({ type:'sawtooth', freq:65, freqEnd:40, dur:0.5, vol:0.1 }); },
+    over:   () => { envOsc({ type:'triangle', freq:440, freqEnd:110, dur:0.5, vol:0.3, release:0.2 });
+                    envOsc({ type:'square', freq:220, freqEnd:55, dur:0.6, vol:0.18, release:0.25 }); },
+    start:  () => { envOsc({ type:'square', freq:392, dur:0.08, vol:0.18 });
+                    setTimeout(() => envOsc({ type:'square', freq:587, dur:0.12, vol:0.2 }), 70); },
+    bonus:  () => { envOsc({ type:'square', freq:880, dur:0.04, vol:0.18 });
+                    setTimeout(() => envOsc({ type:'square', freq:1175, dur:0.08, vol:0.18 }), 50); },
+    crumble: () => envNoise({ dur:0.18, vol:0.18, lowpass:500, release:0.12 }),
   };
 
   // -------- Entities --------
-  // Player: smooth-interpolated grid position. Falls off blocks if there's nothing under it.
-  const player = { x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, moving: false, alive: true };
-  // Monster: chases player on a slower schedule
-  const monster = { x: 6, y: 6, vx: 6, vy: 6, targetX: 6, targetY: 6, moving: false, stepCooldown: 0 };
+  const player = { x:0, y:0, targetX:0, targetY:0, moving:false, alive:true, bobT:0, lastDirX:0, lastDirY:0, squash:0 };
+  const monster = { x:8, y:8, targetX:8, targetY:8, moving:false, stepCooldown:0, lastGrowl:0, bobT:0 };
+  const falling = [];      // {x,y,z,ci, vz?}
+  const edgeFall = new Map(); // "x,y,z" -> {vz, x,y,z, ci}
+  const particles = [];    // {x,y,z,vx,vy,vz,life,maxLife,color}
+  const popups = [];       // {x,y,z,t,text,color}
 
-  // Falling blocks in mid-air: {x,y,z,ci}
-  const falling = [];
+  // -------- Maze generation queue --------
+  // Pre-build a "maze" of L/straight wall segments at gameplay start, reveal over time.
+  let mazeQueue = [];
+  function planMaze() {
+    mazeQueue = [];
+    const seen = new Set();
+    // Place segments on a coarser sub-grid to keep paths walkable.
+    // Walls live at z=0 (1-tall) on tiles where x+y is even, skipping the spawn area.
+    const candidates = [];
+    for (let x = -GRID + 1; x <= GRID - 1; x++) {
+      for (let y = -GRID + 1; y <= GRID - 1; y++) {
+        if (Math.abs(x) <= 1 && Math.abs(y) <= 1) continue; // keep spawn clear
+        if (Math.abs(x - 8) <= 1 && Math.abs(y - 8) <= 1) continue; // keep monster spawn clear
+        candidates.push([x, y]);
+      }
+    }
+    // Shuffle
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    // Build short walls of length 2–4 in alternating directions.
+    const target = Math.floor(candidates.length * 0.18);
+    let count = 0;
+    for (const [sx, sy] of candidates) {
+      if (count >= target) break;
+      if (seen.has(`${sx},${sy}`)) continue;
+      const horizontal = Math.random() < 0.5;
+      const len = 2 + Math.floor(Math.random() * 3);
+      const seg = [];
+      for (let i = 0; i < len; i++) {
+        const wx = sx + (horizontal ? i : 0);
+        const wy = sy + (horizontal ? 0 : i);
+        if (!inBoundsTile(wx, wy)) break;
+        if (Math.abs(wx) <= 1 && Math.abs(wy) <= 1) break;
+        if (seen.has(`${wx},${wy}`)) break;
+        seg.push([wx, wy]);
+      }
+      if (seg.length >= 2) {
+        for (const [wx, wy] of seg) { seen.add(`${wx},${wy}`); mazeQueue.push([wx, wy]); }
+        count += seg.length;
+      }
+    }
+  }
+  let lastMazeAt = 0;
+  let mazeInterval = 700; // ms between wall placements
 
-  // -------- Game mode --------
-  let mode = 'build';            // 'build' | 'play'
-  let gameStart = 0;
-  let lastBlockSpawn = 0;
-  let spawnInterval = 900;       // ms
-  let lastT = 0;
-  let running = true;
+  function spawnParticles(x, y, z, color, n = 6, opts = {}) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 0.4 + Math.random() * 0.6;
+      particles.push({
+        x, y, z,
+        vx: Math.cos(a) * s * (opts.spread || 1),
+        vy: Math.sin(a) * s * (opts.spread || 1),
+        vz: 0.6 + Math.random() * 0.8,
+        life: 0, maxLife: 0.45 + Math.random() * 0.25,
+        color,
+        size: 3 + Math.random() * 3,
+      });
+    }
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const t = 1 - p.life / p.maxLife;
+      const [sx, sy] = worldToScreen(p.x, p.y, p.z);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, t);
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.size * zoom, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawPopups() {
+    for (const p of popups) {
+      const a = Math.max(0, 1 - p.t / 0.8);
+      const [sx, sy] = worldToScreen(p.x, p.y, p.z);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = a;
+      ctx.font = `bold ${Math.round(16 * zoom)}px system-ui`;
+      ctx.textAlign = 'center';
+      ctx.fillText(p.text, sx, sy - 30 * zoom - p.t * 40);
+      ctx.globalAlpha = 1;
+    }
+  }
 
   function drawLandingShadow(x, y, landZ, currentZ) {
-    // intensify as the falling block approaches landing
     const dz = Math.max(0, currentZ - landZ);
     const t = Math.max(0, Math.min(1, 1 - dz / 8));
     const [sx, sy] = worldToScreen(x, y, landZ + 1);
@@ -261,38 +403,53 @@
     ctx.lineTo(sx + w, sy + h);
     ctx.lineTo(sx, sy + 2*h);
     ctx.lineTo(sx - w, sy + h);
-    ctx.closePath();
-    ctx.fill();
+    ctx.closePath(); ctx.fill();
     ctx.strokeStyle = `rgba(255, 80, 80, ${0.3 + 0.5 * t})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    ctx.lineWidth = 2; ctx.stroke();
     ctx.restore();
   }
 
-  function drawSprite(x, y, z, color, kind) {
-    // x,y can be fractional for smoothness
-    const [sx, sy] = worldToScreen(x, y, z);
-    const w = TILE * 0.35 * zoom;
-    const hgt = HEIGHT * 1.2 * zoom;
+  function drawSprite(x, y, z, color, kind, bob, squash) {
+    const [sx0, sy0] = worldToScreen(x, y, z);
+    const bobY = -Math.abs(Math.sin(bob)) * 6 * zoom;
+    const sqY = squash * 4 * zoom;
+    const sx = sx0, sy = sy0 + bobY + sqY;
+    const sqXScale = 1 + squash * 0.2;
+    const sqYScale = 1 - squash * 0.25;
+    const w = TILE * 0.35 * zoom * sqXScale;
+    const hgt = HEIGHT * 1.2 * zoom * sqYScale;
 
-    // shadow
+    // shadow on ground
+    const [shx, shy] = worldToScreen(x, y, z);
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath();
-    ctx.ellipse(sx, sy, w * 0.9, w * 0.45, 0, 0, Math.PI * 2);
+    ctx.ellipse(shx, shy, w * 0.9, w * 0.45, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // body
     if (kind === 'player') {
+      // blocky body with stud
       ctx.fillStyle = shade(color, 0.85);
       ctx.fillRect(sx - w*0.5, sy - hgt, w, hgt);
       ctx.fillStyle = color;
       ctx.fillRect(sx - w*0.5, sy - hgt, w, hgt*0.55);
+      // belt seam
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(sx - w*0.5, sy - hgt*0.45); ctx.lineTo(sx + w*0.5, sy - hgt*0.45); ctx.stroke();
       // eyes
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(sx - w*0.28, sy - hgt*0.8, w*0.22, w*0.22);
+      ctx.fillRect(sx + w*0.07, sy - hgt*0.8, w*0.22, w*0.22);
       ctx.fillStyle = '#0e1116';
-      ctx.fillRect(sx - w*0.25, sy - hgt*0.75, w*0.18, w*0.18);
-      ctx.fillRect(sx + w*0.07, sy - hgt*0.75, w*0.18, w*0.18);
+      const eyeDx = bob > 0 ? 0.04 * w : -0.04 * w;
+      ctx.fillRect(sx - w*0.22 + eyeDx, sy - hgt*0.75, w*0.1, w*0.12);
+      ctx.fillRect(sx + w*0.13 + eyeDx, sy - hgt*0.75, w*0.1, w*0.12);
+      // stud on head
+      ctx.fillStyle = shade(color, 1.2);
+      ctx.beginPath();
+      ctx.ellipse(sx, sy - hgt, w*0.22, w*0.1, 0, 0, Math.PI * 2);
+      ctx.fill();
     } else {
-      // monster: jagged, two eyes
       ctx.fillStyle = shade(color, 0.85);
       const bx = sx - w*0.6, by = sy - hgt, bw = w*1.2, bh = hgt;
       ctx.beginPath();
@@ -304,51 +461,85 @@
       ctx.lineTo(bx + bw, by + bh*0.2);
       ctx.lineTo(bx + bw, by + bh);
       ctx.lineTo(bx, by + bh);
-      ctx.closePath();
-      ctx.fill();
+      ctx.closePath(); ctx.fill();
+      // eyes
       ctx.fillStyle = '#fff';
       ctx.fillRect(bx + bw*0.2, by + bh*0.35, bw*0.18, bh*0.2);
       ctx.fillRect(bx + bw*0.62, by + bh*0.35, bw*0.18, bh*0.2);
-      ctx.fillStyle = '#0e1116';
-      ctx.fillRect(bx + bw*0.25, by + bh*0.4, bw*0.08, bh*0.12);
-      ctx.fillRect(bx + bw*0.67, by + bh*0.4, bw*0.08, bh*0.12);
+      ctx.fillStyle = '#c00';
+      const blink = (Math.sin(bob * 1.4) > 0.92) ? 0 : bh*0.12;
+      ctx.fillRect(bx + bw*0.25, by + bh*0.4, bw*0.08, blink);
+      ctx.fillRect(bx + bw*0.67, by + bh*0.4, bw*0.08, blink);
+    }
+  }
+
+  // -------- Sky clouds (background) --------
+  const clouds = [];
+  for (let i = 0; i < 8; i++) clouds.push({ x: Math.random(), y: 0.05 + Math.random() * 0.35, r: 0.04 + Math.random() * 0.05, s: 0.005 + Math.random() * 0.008 });
+
+  function drawSky() {
+    // gradient over the canvas
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#3b4d73');
+    g.addColorStop(0.55, '#1d2433');
+    g.addColorStop(1, '#0e1116');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    // clouds
+    for (const c of clouds) {
+      const cx = c.x * W, cy = c.y * H;
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.beginPath();
+      ctx.arc(cx,           cy,           c.r * H, 0, Math.PI * 2);
+      ctx.arc(cx + c.r*H,   cy - c.r*H*0.2, c.r * H * 0.8, 0, Math.PI * 2);
+      ctx.arc(cx - c.r*H,   cy - c.r*H*0.2, c.r * H * 0.8, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
   function draw() {
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    ctx.clearRect(0,0,W,H);
+    drawSky();
 
-    // collect renderables with sort key in rotated screen space
     const items = [];
-    for (const [k, ci] of blocks) {
+    const now = performance.now();
+    for (const [k, info] of blocks) {
       const [x,y,z] = k.split(',').map(Number);
       const [rx, ry] = rotated(x, y);
-      items.push({ kind: 'block', depth: rx + ry + z * 0.001, z, draw: () => drawBlock(x,y,z,ci) });
+      const age = now - info.born;
+      const scale = info.popT > 0 ? (0.4 + 0.6 * (1 - info.popT)) : 1;
+      const yOff = info.popT > 0 ? -10 * info.popT : 0;
+      items.push({ depth: rx + ry + z * 0.001, z, draw: () => drawBlock(x,y,z,info.ci,{scale,yOff}) });
+    }
+    for (const [k, e] of edgeFall) {
+      const [rx, ry] = rotated(e.x, e.y);
+      items.push({ depth: rx + ry + e.z * 0.001 - 0.0001, z: e.z, draw: () => drawBlock(e.x, e.y, e.z, e.ci, {}) });
     }
     if (mode === 'play') {
       const pz = heightAt(Math.round(player.x), Math.round(player.y));
       const [prx, pry] = rotated(player.x, player.y);
-      items.push({ kind: 'player', depth: prx + pry + 0.5, z: pz,
-        draw: () => drawSprite(player.x, player.y, pz, '#60a5fa', 'player') });
+      items.push({ depth: prx + pry + 0.5, z: pz,
+        draw: () => drawSprite(player.x, player.y, pz, '#60a5fa', 'player', player.bobT, player.squash) });
 
       const mz = heightAt(Math.round(monster.x), Math.round(monster.y));
       const [mrx, mry] = rotated(monster.x, monster.y);
-      items.push({ kind: 'monster', depth: mrx + mry + 0.5, z: mz,
-        draw: () => drawSprite(monster.x, monster.y, mz, '#a855f7', 'monster') });
+      items.push({ depth: mrx + mry + 0.5, z: mz,
+        draw: () => drawSprite(monster.x, monster.y, mz, '#a855f7', 'monster', monster.bobT, 0) });
 
       for (const f of falling) {
         const [frx, fry] = rotated(f.x, f.y);
         const landZ = heightAt(f.x, f.y);
-        // landing-shadow indicator on top of the stack — so the player can dodge
-        items.push({ kind: 'shadow', depth: frx + fry + landZ * 0.001 - 0.5, z: landZ,
+        items.push({ depth: frx + fry + landZ * 0.001 - 0.5, z: landZ,
           draw: () => drawLandingShadow(f.x, f.y, landZ, f.z) });
-        items.push({ kind: 'fall', depth: frx + fry + f.z * 0.001 + 0.5,
-          draw: () => drawBlock(f.x, f.y, f.z, f.ci) });
+        items.push({ depth: frx + fry + f.z * 0.001 + 0.5,
+          draw: () => drawBlock(f.x, f.y, f.z, f.ci, {}) });
       }
     }
     items.sort((a,b) => a.depth - b.depth || (a.z||0) - (b.z||0));
     for (const it of items) it.draw();
+
+    drawParticles();
+    drawPopups();
   }
 
   function pick(mx, my) {
@@ -359,9 +550,7 @@
           const [sx, sy] = worldToScreen(x, y, z + 1);
           const w = (TILE/2) * zoom, h = (TILE/4) * zoom;
           const dx = mx - sx, dy = my - sy - h;
-          if (Math.abs(dx) / w + Math.abs(dy) / h <= 1) {
-            return { x, y, z };
-          }
+          if (Math.abs(dx) / w + Math.abs(dy) / h <= 1) return { x, y, z };
         }
       }
     }
@@ -391,9 +580,13 @@
     if (!hit) return;
     ensureAudio();
     if (e.button === 2) {
-      if (hit.z >= 0) { blocks.delete(key(hit.x, hit.y, hit.z)); sfx.remove(); }
+      if (hit.z >= 0) {
+        const b = getBlock(hit.x, hit.y, hit.z);
+        spawnParticles(hit.x, hit.y, hit.z + 0.5, COLORS[b ? b.ci : 0], 8);
+        delBlock(hit.x, hit.y, hit.z); sfx.remove();
+      }
     } else {
-      blocks.set(key(hit.x, hit.y, hit.z + 1), active); sfx.place();
+      setBlock(hit.x, hit.y, hit.z + 1, active, { pop: true }); sfx.place();
     }
     draw();
   });
@@ -414,29 +607,32 @@
   }, { passive: false });
 
   // -------- Keyboard --------
-  // Arrow direction is in *rotated* (screen) space, so it always matches what the player sees.
   function screenDirToWorld(dxs, dys) {
-    // inverse of rotated() for direction vector
     const r = ((rot % 4) + 4) % 4;
-    switch (r) {
-      case 0: return [dxs, dys];
-      case 1: return [dys, -dxs];
-      case 2: return [-dxs, -dys];
-      case 3: return [-dys, dxs];
-    }
+    if (r === 0) return [dxs, dys];
+    if (r === 1) return [dys, -dxs];
+    if (r === 2) return [-dxs, -dys];
+    return [-dys, dxs];
+  }
+  function passable(x, y) {
+    if (!inBoundsTile(x, y)) return false;
+    if (isWallTile(x, y)) return false;
+    if (!blocks.has(key(x, y, -1))) return false; // floor must still exist
+    return true;
   }
   function tryStepPlayer(dxs, dys) {
     if (player.moving || !player.alive || mode !== 'play') return;
     const [dx, dy] = screenDirToWorld(dxs, dys);
     const nx = Math.round(player.x) + dx, ny = Math.round(player.y) + dy;
-    if (!inBounds(nx, ny)) return;
+    if (!passable(nx, ny)) { sfx.wall(); return; }
     player.targetX = nx; player.targetY = ny; player.moving = true;
+    player.lastDirX = dx; player.lastDirY = dy;
     sfx.step();
   }
   window.addEventListener('keydown', (e) => {
     if (mode === 'build') {
-      if (e.key >= '1' && e.key <= '7') { active = parseInt(e.key, 10) - 1; renderPalette(); }
-      else if (e.key === 'r' || e.key === 'R') { rot = (rot + 1) % 4; draw(); }
+      if (e.key >= '1' && e.key <= '7') { active = parseInt(e.key,10)-1; renderPalette(); }
+      else if (e.key === 'r' || e.key === 'R') { rot = (rot+1)%4; draw(); }
       return;
     }
     if (e.key === 'ArrowUp')    { e.preventDefault(); tryStepPlayer(0, -1); }
@@ -459,14 +655,50 @@
   }
   renderPalette();
 
-  // -------- Buttons --------
+  // -------- Buttons / state --------
   const playBtn = document.getElementById('playBtn');
   const modeHelp = document.getElementById('modeHelp');
   const hud = document.getElementById('hud');
   const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const elapsedEl = document.getElementById('elapsed');
+  const wallsEl = document.getElementById('walls');
   const gameover = document.getElementById('gameover');
   const goTitle = document.getElementById('goTitle');
   const goSub = document.getElementById('goSub');
+  const goScore = document.getElementById('goScore');
+  const goSec = document.getElementById('goSec');
+
+  let mode = 'build';
+  let gameStart = 0, lastBlockSpawn = 0, lastT = 0;
+  let spawnInterval = 950;
+  let safeRadius = GRID;
+  let lastEdgeShrink = 0;
+  let score = 0, wallsPlaced = 0;
+  let best = parseInt(localStorage.getItem('cce_best') || '0', 10) || 0;
+  bestEl.textContent = best;
+
+  function flashScore() {
+    scoreEl.classList.remove('pop');
+    void scoreEl.offsetWidth;
+    scoreEl.classList.add('pop');
+  }
+  function addScore(n, x, y, z, text, color) {
+    score += n;
+    scoreEl.textContent = score;
+    flashScore();
+    if (text) popups.push({ x, y, z, t: 0, text, color: color || '#fbbf24' });
+  }
+
+  function resetField() {
+    buildGround();
+    safeRadius = GRID;
+    edgeFall.clear();
+    falling.length = 0;
+    particles.length = 0;
+    popups.length = 0;
+    planMaze();
+  }
 
   function enterPlay() {
     ensureAudio();
@@ -474,18 +706,23 @@
     mode = 'play';
     document.body.classList.add('play');
     playBtn.textContent = 'Stop';
-    modeHelp.textContent = 'Arrow keys: move. Dodge falling blocks. The monster wants you.';
+    modeHelp.textContent = 'Arrow keys: move. Dodge falling blocks. Watch the edges — they crumble. The monster wants you.';
     hud.style.display = 'block';
     gameover.style.display = 'none';
-    sfx.start();
 
+    resetField();
     player.x = 0; player.y = 0; player.targetX = 0; player.targetY = 0;
-    player.moving = false; player.alive = true;
+    player.moving = false; player.alive = true; player.bobT = 0; player.squash = 0;
     monster.x = 8; monster.y = 8; monster.targetX = 8; monster.targetY = 8;
-    monster.moving = false; monster.stepCooldown = 0;
-    falling.length = 0;
+    monster.moving = false; monster.stepCooldown = 0; monster.bobT = 0;
+    score = 0; wallsPlaced = 0;
+    scoreEl.textContent = '0'; elapsedEl.textContent = '0'; wallsEl.textContent = '0';
+
     gameStart = performance.now();
     lastBlockSpawn = gameStart;
+    lastMazeAt = gameStart;
+    lastEdgeShrink = gameStart;
+    sfx.start();
   }
   function enterBuild() {
     mode = 'build';
@@ -494,6 +731,7 @@
     modeHelp.textContent = 'Left-click: place. Right-click: remove. Drag: pan. Wheel: zoom. 1–7: color. R: rotate.';
     hud.style.display = 'none';
     gameover.style.display = 'none';
+    buildGround();
   }
   playBtn.onclick = () => { mode === 'build' ? enterPlay() : enterBuild(); };
   document.getElementById('clear').onclick = () => { buildGround(); draw(); };
@@ -513,90 +751,212 @@
 
   function endGame(reason) {
     player.alive = false;
+    const seconds = Math.floor((performance.now() - gameStart) / 1000);
     goTitle.textContent = 'Game Over';
     goSub.textContent = reason;
-    const seconds = Math.floor((performance.now() - gameStart) / 1000);
-    goSub.textContent = `${reason} You survived ${seconds}s.`;
+    goScore.textContent = score;
+    goSec.textContent = seconds;
+    if (score > best) {
+      best = score;
+      localStorage.setItem('cce_best', String(best));
+      bestEl.textContent = best;
+      goTitle.textContent = 'New best!';
+    }
     gameover.style.display = 'flex';
+    document.body.classList.add('shake');
+    setTimeout(() => document.body.classList.remove('shake'), 400);
     sfx.over();
   }
 
   // -------- Update loop --------
-  function spawnFalling(now) {
-    // Spawn one block at a random in-bounds column above the current stack.
-    const x = Math.floor(Math.random() * (GRID * 2 + 1)) - GRID;
-    const y = Math.floor(Math.random() * (GRID * 2 + 1)) - GRID;
-    const ci = Math.floor(Math.random() * (COLORS.length - 1)); // skip white/ground color
+  function spawnFalling() {
+    const r = Math.max(2, Math.floor(safeRadius));
+    const x = Math.floor(Math.random() * (r * 2 + 1)) - r;
+    const y = Math.floor(Math.random() * (r * 2 + 1)) - r;
+    const ci = Math.floor(Math.random() * (COLORS.length - 1));
     falling.push({ x, y, z: 12, ci });
   }
 
+  function placeMazeWall() {
+    while (mazeQueue.length) {
+      const [x, y] = mazeQueue.shift();
+      if (!inBoundsTile(x, y)) continue;
+      if (Math.abs(x) > safeRadius || Math.abs(y) > safeRadius) continue;
+      if (blocks.has(key(x, y, 0))) continue;
+      // don't trap player on a 1-tile peninsula
+      if (Math.round(player.x) === x && Math.round(player.y) === y) continue;
+      if (Math.round(monster.x) === x && Math.round(monster.y) === y) continue;
+      setBlock(x, y, 0, WALL_CI, { wall: true, pop: true });
+      wallsPlaced++;
+      wallsEl.textContent = wallsPlaced;
+      sfx.wall();
+      spawnParticles(x, y, 0.8, COLORS[WALL_CI], 4);
+      return;
+    }
+  }
+
+  function shrinkEdges(now) {
+    if (safeRadius <= 3) return;
+    // Drop the outermost ring tiles into edgeFall
+    const r = safeRadius;
+    for (let x = -r; x <= r; x++) {
+      for (const y of [-r, r]) {
+        for (let z = -1; z <= 6; z++) {
+          const k = key(x, y, z);
+          const b = blocks.get(k);
+          if (!b) continue;
+          edgeFall.set(`${x},${y},${z}`, { x, y, z, ci: b.ci, vz: -0.5 - Math.random() * 0.4 });
+          blocks.delete(k);
+        }
+      }
+    }
+    for (let y = -r + 1; y <= r - 1; y++) {
+      for (const x of [-r, r]) {
+        for (let z = -1; z <= 6; z++) {
+          const k = key(x, y, z);
+          const b = blocks.get(k);
+          if (!b) continue;
+          edgeFall.set(`${x},${y},${z}`, { x, y, z, ci: b.ci, vz: -0.5 - Math.random() * 0.4 });
+          blocks.delete(k);
+        }
+      }
+    }
+    safeRadius--;
+    sfx.crumble();
+  }
+
   function stepMonster() {
-    if (!player.alive) return;
-    if (monster.moving) return;
+    if (!player.alive || monster.moving) return;
+    const tries = [];
     const dx = Math.sign(Math.round(player.x) - Math.round(monster.x));
     const dy = Math.sign(Math.round(player.y) - Math.round(monster.y));
-    // alternate axis to avoid only moving one way
-    let nx = Math.round(monster.x), ny = Math.round(monster.y);
     if (Math.abs(player.x - monster.x) > Math.abs(player.y - monster.y)) {
-      nx += dx;
-      if (!inBounds(nx, ny) || (nx === Math.round(monster.x) && dy)) { nx = Math.round(monster.x); ny += dy; }
+      if (dx) tries.push([dx, 0]);
+      if (dy) tries.push([0, dy]);
     } else {
-      ny += dy;
-      if (!inBounds(nx, ny) || (ny === Math.round(monster.y) && dx)) { ny = Math.round(monster.y); nx += dx; }
+      if (dy) tries.push([0, dy]);
+      if (dx) tries.push([dx, 0]);
     }
-    if (!inBounds(nx, ny)) return;
-    monster.targetX = nx; monster.targetY = ny; monster.moving = true;
+    // also allow lateral moves to get around walls
+    tries.push([dx || 1, 0]); tries.push([-(dx || 1), 0]);
+    tries.push([0, dy || 1]); tries.push([0, -(dy || 1)]);
+    for (const [tx, ty] of tries) {
+      const nx = Math.round(monster.x) + tx, ny = Math.round(monster.y) + ty;
+      if (passable(nx, ny)) { monster.targetX = nx; monster.targetY = ny; monster.moving = true; return; }
+    }
   }
 
   function update(dt, now) {
+    // age pop animations on blocks
+    for (const [k, info] of blocks) {
+      if (info.popT > 0) info.popT = Math.max(0, info.popT - dt * 4);
+    }
+    // age popups
+    for (let i = popups.length - 1; i >= 0; i--) {
+      popups[i].t += dt;
+      if (popups[i].t > 0.8) popups.splice(i, 1);
+    }
+    // particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt * 2; p.y += p.vy * dt * 2; p.z += p.vz * dt * 4;
+      p.vz -= dt * 8;
+      p.life += dt;
+      if (p.life >= p.maxLife) particles.splice(i, 1);
+    }
+    // edgeFall
+    for (const [k, e] of edgeFall) {
+      e.vz -= dt * 2.5;
+      e.z += e.vz * dt * 4;
+      if (e.z < -8) edgeFall.delete(k);
+    }
+
     if (mode !== 'play' || !player.alive) return;
 
-    // Player movement
-    const pspeed = 6; // tiles/sec
+    // Player smooth move + bob/squash
+    const pspeed = 6.5;
     if (player.moving) {
       const dx = player.targetX - player.x, dy = player.targetY - player.y;
       const dist = Math.hypot(dx, dy);
       const step = pspeed * dt;
-      if (dist <= step) { player.x = player.targetX; player.y = player.targetY; player.moving = false; }
-      else { player.x += dx / dist * step; player.y += dy / dist * step; }
+      if (dist <= step) {
+        player.x = player.targetX; player.y = player.targetY;
+        player.moving = false;
+        player.squash = 0.5;
+        sfx.hop();
+        spawnParticles(player.x, player.y, 0.1, '#60a5fa', 4, { spread: 0.8 });
+      } else {
+        player.x += dx / dist * step; player.y += dy / dist * step;
+      }
+      player.bobT += dt * 18;
+    } else {
+      player.bobT *= 0.85; // settle
+    }
+    player.squash = Math.max(0, player.squash - dt * 4);
+
+    // Check player fell off
+    if (!blocks.has(key(Math.round(player.x), Math.round(player.y), -1))) {
+      return endGame('You fell off the edge.');
     }
 
-    // Monster movement and step pacing
-    const mspeed = 2.8;
+    // Monster
+    const mspeed = 2.9;
     if (monster.moving) {
       const dx = monster.targetX - monster.x, dy = monster.targetY - monster.y;
       const dist = Math.hypot(dx, dy);
       const step = mspeed * dt;
-      if (dist <= step) { monster.x = monster.targetX; monster.y = monster.targetY; monster.moving = false; monster.stepCooldown = 0.15; }
-      else { monster.x += dx / dist * step; monster.y += dy / dist * step; }
+      if (dist <= step) {
+        monster.x = monster.targetX; monster.y = monster.targetY;
+        monster.moving = false; monster.stepCooldown = 0.18;
+      } else {
+        monster.x += dx / dist * step; monster.y += dy / dist * step;
+      }
+      monster.bobT += dt * 10;
     } else {
       monster.stepCooldown -= dt;
       if (monster.stepCooldown <= 0) stepMonster();
     }
 
-    // Catch check
+    // Catch
     if (Math.hypot(monster.x - player.x, monster.y - player.y) < 0.45) {
       sfx.growl();
       return endGame('The monster caught you.');
     }
-    // Occasional growl when close
     if (Math.hypot(monster.x - player.x, monster.y - player.y) < 3.2) {
-      if (!monster.lastGrowl || now - monster.lastGrowl > 1800) {
-        monster.lastGrowl = now;
-        sfx.growl();
-      }
+      if (now - monster.lastGrowl > 1800) { monster.lastGrowl = now; sfx.growl(); }
     }
 
-    // Spawn falling blocks; gentle difficulty ramp keeps it dodgeable
+    // Score from time
     const elapsed = (now - gameStart) / 1000;
-    const interval = Math.max(320, spawnInterval - elapsed * 12);
+    elapsedEl.textContent = Math.floor(elapsed);
+    const expected = Math.floor(elapsed * 10);
+    if (expected > score) {
+      score = expected;
+      scoreEl.textContent = score;
+    }
+
+    // Maze placement over time
+    if (now - lastMazeAt > mazeInterval) {
+      placeMazeWall();
+      lastMazeAt = now;
+      mazeInterval = Math.max(280, mazeInterval - 4);
+    }
+
+    // Edge shrink: every 9 seconds
+    if (now - lastEdgeShrink > 9000) {
+      shrinkEdges(now);
+      lastEdgeShrink = now;
+    }
+
+    // Falling block spawn
+    const interval = Math.max(330, spawnInterval - elapsed * 11);
     while (now - lastBlockSpawn > interval) {
-      spawnFalling(now);
+      spawnFalling();
       lastBlockSpawn += interval;
     }
 
-    // Falling blocks descend (slower so the warning shadow is useful)
-    const fallSpeed = 3.2 + elapsed * 0.08; // z units / sec
+    // Falling block descent
+    const fallSpeed = 3.4 + elapsed * 0.08;
     for (let i = falling.length - 1; i >= 0; i--) {
       const f = falling[i];
       f.z -= fallSpeed * dt;
@@ -608,13 +968,17 @@
           sfx.land();
           return endGame('A block landed on you.');
         }
-        blocks.set(key(f.x, f.y, landZ), f.ci);
+        // Near-miss bonus: if it lands adjacent to player, +25
+        if (Math.abs(f.x - px) + Math.abs(f.y - py) === 1) {
+          addScore(25, f.x, f.y, landZ + 1.2, '+25 dodge!', '#34d399');
+          sfx.bonus();
+        }
+        setBlock(f.x, f.y, landZ, f.ci, { pop: true });
+        spawnParticles(f.x, f.y, landZ + 0.6, COLORS[f.ci], 6);
         falling.splice(i, 1);
         sfx.land();
       }
     }
-
-    scoreEl.textContent = Math.floor(elapsed).toString();
   }
 
   function tick(t) {
