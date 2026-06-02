@@ -58,6 +58,7 @@
     <button id="playBtn" class="primary">Play</button>
     <button id="clear">Clear</button>
     <button id="save">Save PNG</button>
+    <button id="muteBtn" title="Toggle sound">Sound: on</button>
   </div>
 </div>
 
@@ -174,6 +175,62 @@
     ctx.stroke();
   }
 
+  // -------- Audio (Web Audio synth, no asset files) --------
+  let ac = null, masterGain = null, audioOn = true;
+  function ensureAudio() {
+    if (ac) return;
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = ac.createGain();
+      masterGain.gain.value = 0.25;
+      masterGain.connect(ac.destination);
+    } catch { ac = null; }
+  }
+  function envOsc({ type = 'sine', freq = 440, freqEnd = null, dur = 0.1, vol = 0.5, attack = 0.005, release = 0.08 }) {
+    if (!audioOn || !ac) return;
+    const t0 = ac.currentTime;
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (freqEnd != null) osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), t0 + dur);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + release);
+    osc.connect(g).connect(masterGain);
+    osc.start(t0);
+    osc.stop(t0 + dur + release + 0.02);
+  }
+  function envNoise({ dur = 0.1, vol = 0.4, lowpass = 2000, release = 0.06 }) {
+    if (!audioOn || !ac) return;
+    const t0 = ac.currentTime;
+    const len = Math.max(1, Math.floor(ac.sampleRate * (dur + release)));
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = lowpass;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + release);
+    src.connect(lp).connect(g).connect(masterGain);
+    src.start(t0); src.stop(t0 + dur + release + 0.02);
+  }
+  const sfx = {
+    place:  () => { envOsc({ type: 'square', freq: 520, freqEnd: 380, dur: 0.06, vol: 0.18 }); },
+    remove: () => { envOsc({ type: 'square', freq: 240, freqEnd: 160, dur: 0.07, vol: 0.16 }); },
+    step:   () => { envOsc({ type: 'sine',   freq: 180, freqEnd: 110, dur: 0.05, vol: 0.22 });
+                    envNoise({ dur: 0.04, vol: 0.08, lowpass: 1200 }); },
+    land:   () => { envOsc({ type: 'sine',   freq: 120, freqEnd: 60,  dur: 0.12, vol: 0.35 });
+                    envNoise({ dur: 0.08, vol: 0.18, lowpass: 800 }); },
+    growl:  () => { envOsc({ type: 'sawtooth', freq: 90, freqEnd: 55, dur: 0.45, vol: 0.18 });
+                    envOsc({ type: 'sawtooth', freq: 65, freqEnd: 40, dur: 0.5, vol: 0.12 }); },
+    over:   () => { envOsc({ type: 'triangle', freq: 440, freqEnd: 110, dur: 0.5, vol: 0.3, release: 0.2 });
+                    envOsc({ type: 'square',  freq: 220, freqEnd:  55, dur: 0.6, vol: 0.18, release: 0.25 }); },
+    start:  () => { envOsc({ type: 'square', freq: 392, dur: 0.08, vol: 0.18 });
+                    setTimeout(() => envOsc({ type: 'square', freq: 587, dur: 0.12, vol: 0.2 }), 70); },
+  };
+
   // -------- Entities --------
   // Player: smooth-interpolated grid position. Falls off blocks if there's nothing under it.
   const player = { x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, moving: false, alive: true };
@@ -190,6 +247,27 @@
   let spawnInterval = 900;       // ms
   let lastT = 0;
   let running = true;
+
+  function drawLandingShadow(x, y, landZ, currentZ) {
+    // intensify as the falling block approaches landing
+    const dz = Math.max(0, currentZ - landZ);
+    const t = Math.max(0, Math.min(1, 1 - dz / 8));
+    const [sx, sy] = worldToScreen(x, y, landZ + 1);
+    const w = (TILE/2) * zoom, h = (TILE/4) * zoom;
+    ctx.save();
+    ctx.fillStyle = `rgba(248, 113, 113, ${0.18 + 0.45 * t})`;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + w, sy + h);
+    ctx.lineTo(sx, sy + 2*h);
+    ctx.lineTo(sx - w, sy + h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255, 80, 80, ${0.3 + 0.5 * t})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
 
   function drawSprite(x, y, z, color, kind) {
     // x,y can be fractional for smoothness
@@ -261,7 +339,11 @@
 
       for (const f of falling) {
         const [frx, fry] = rotated(f.x, f.y);
-        items.push({ kind: 'fall', depth: frx + fry + f.z * 0.001 - 1000,
+        const landZ = heightAt(f.x, f.y);
+        // landing-shadow indicator on top of the stack — so the player can dodge
+        items.push({ kind: 'shadow', depth: frx + fry + landZ * 0.001 - 0.5, z: landZ,
+          draw: () => drawLandingShadow(f.x, f.y, landZ, f.z) });
+        items.push({ kind: 'fall', depth: frx + fry + f.z * 0.001 + 0.5,
           draw: () => drawBlock(f.x, f.y, f.z, f.ci) });
       }
     }
@@ -307,10 +389,11 @@
     if (dragMoved) return;
     const hit = pick(e.clientX, e.clientY);
     if (!hit) return;
+    ensureAudio();
     if (e.button === 2) {
-      if (hit.z >= 0) blocks.delete(key(hit.x, hit.y, hit.z));
+      if (hit.z >= 0) { blocks.delete(key(hit.x, hit.y, hit.z)); sfx.remove(); }
     } else {
-      blocks.set(key(hit.x, hit.y, hit.z + 1), active);
+      blocks.set(key(hit.x, hit.y, hit.z + 1), active); sfx.place();
     }
     draw();
   });
@@ -348,6 +431,7 @@
     const nx = Math.round(player.x) + dx, ny = Math.round(player.y) + dy;
     if (!inBounds(nx, ny)) return;
     player.targetX = nx; player.targetY = ny; player.moving = true;
+    sfx.step();
   }
   window.addEventListener('keydown', (e) => {
     if (mode === 'build') {
@@ -385,12 +469,15 @@
   const goSub = document.getElementById('goSub');
 
   function enterPlay() {
+    ensureAudio();
+    if (ac && ac.state === 'suspended') ac.resume();
     mode = 'play';
     document.body.classList.add('play');
     playBtn.textContent = 'Stop';
     modeHelp.textContent = 'Arrow keys: move. Dodge falling blocks. The monster wants you.';
     hud.style.display = 'block';
     gameover.style.display = 'none';
+    sfx.start();
 
     player.x = 0; player.y = 0; player.targetX = 0; player.targetY = 0;
     player.moving = false; player.alive = true;
@@ -417,12 +504,21 @@
   };
   document.getElementById('goAgain').onclick = enterPlay;
   document.getElementById('goBuild').onclick = enterBuild;
+  const muteBtn = document.getElementById('muteBtn');
+  muteBtn.onclick = () => {
+    audioOn = !audioOn;
+    muteBtn.textContent = `Sound: ${audioOn ? 'on' : 'off'}`;
+    if (audioOn) ensureAudio();
+  };
 
   function endGame(reason) {
     player.alive = false;
     goTitle.textContent = 'Game Over';
     goSub.textContent = reason;
+    const seconds = Math.floor((performance.now() - gameStart) / 1000);
+    goSub.textContent = `${reason} You survived ${seconds}s.`;
     gameover.style.display = 'flex';
+    sfx.over();
   }
 
   // -------- Update loop --------
@@ -480,32 +576,41 @@
 
     // Catch check
     if (Math.hypot(monster.x - player.x, monster.y - player.y) < 0.45) {
+      sfx.growl();
       return endGame('The monster caught you.');
     }
+    // Occasional growl when close
+    if (Math.hypot(monster.x - player.x, monster.y - player.y) < 3.2) {
+      if (!monster.lastGrowl || now - monster.lastGrowl > 1800) {
+        monster.lastGrowl = now;
+        sfx.growl();
+      }
+    }
 
-    // Spawn falling blocks; ramp up difficulty
+    // Spawn falling blocks; gentle difficulty ramp keeps it dodgeable
     const elapsed = (now - gameStart) / 1000;
-    const interval = Math.max(220, spawnInterval - elapsed * 18);
+    const interval = Math.max(320, spawnInterval - elapsed * 12);
     while (now - lastBlockSpawn > interval) {
       spawnFalling(now);
       lastBlockSpawn += interval;
     }
 
-    // Falling blocks descend
-    const fallSpeed = 5 + elapsed * 0.15; // z units / sec
+    // Falling blocks descend (slower so the warning shadow is useful)
+    const fallSpeed = 3.2 + elapsed * 0.08; // z units / sec
     for (let i = falling.length - 1; i >= 0; i--) {
       const f = falling[i];
       f.z -= fallSpeed * dt;
       const landZ = heightAt(f.x, f.y);
       if (f.z <= landZ) {
-        // Check if player or monster is here
         const px = Math.round(player.x), py = Math.round(player.y);
         if (f.x === px && f.y === py) {
           falling.splice(i, 1);
+          sfx.land();
           return endGame('A block landed on you.');
         }
         blocks.set(key(f.x, f.y, landZ), f.ci);
         falling.splice(i, 1);
+        sfx.land();
       }
     }
 

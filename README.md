@@ -19,9 +19,11 @@ Hit **Play**. A blue player appears on the field, a purple monster prowls,
 and blocks rain from the sky.
 
 - Arrow keys: move one tile at a time
-- Dodge falling blocks — if one lands on your tile, you lose
-- Don't let the monster catch you
+- Dodge falling blocks — a red shadow shows where each one will land
+- Don't let the monster catch you (it growls when it's close)
 - Score = seconds survived
+
+Synthesized sound effects via Web Audio API; toggle with the **Sound** button.
 
 ## Running locally
 
