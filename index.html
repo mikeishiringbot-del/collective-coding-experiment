@@ -11,7 +11,7 @@
   #ui {
     position: fixed; top: 12px; left: 12px; z-index: 2;
     background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 8px;
-    padding: 10px 12px; backdrop-filter: blur(6px); max-width: 280px;
+    padding: 10px 12px; backdrop-filter: blur(6px); max-width: 300px;
   }
   #ui h1 { font-size: 14px; margin: 0 0 6px; font-weight: 600; }
   #ui p { margin: 4px 0; color: #9da7b3; font-size: 12px; }
@@ -19,27 +19,62 @@
   .sw { width: 22px; height: 22px; border-radius: 4px; cursor: pointer;
     border: 2px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.4); }
   .sw.active { border-color: #ffffff; }
-  #actions { display: flex; gap: 6px; margin-top: 10px; }
+  #actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
   button { background: #21262d; color: #e6edf3; border: 1px solid #30363d;
     padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit; }
   button:hover { background: #30363d; }
+  button.primary { background: #238636; border-color: #2ea043; }
+  button.primary:hover { background: #2ea043; }
   #hint { position: fixed; bottom: 12px; left: 12px; z-index: 2;
     color: #6e7681; font-size: 12px; }
+  #hud {
+    position: fixed; top: 12px; right: 12px; z-index: 2;
+    background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; display: none;
+  }
+  #hud .label { color: #9da7b3; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  #hud .val { font-size: 18px; font-weight: 600; }
+  #gameover {
+    position: fixed; inset: 0; z-index: 3; display: none;
+    align-items: center; justify-content: center; background: rgba(0,0,0,0.6);
+  }
+  #gameover .box {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+    padding: 24px 28px; text-align: center; min-width: 240px;
+  }
+  #gameover h2 { margin: 0 0 8px; font-size: 20px; }
+  #gameover p { margin: 0 0 16px; color: #9da7b3; }
   canvas { display: block; cursor: crosshair; }
+  body.play canvas { cursor: default; }
 </style>
 </head>
 <body>
 
 <div id="ui">
   <h1>Block Builder</h1>
-  <p>Left-click: place. Right-click: remove. Drag: pan. Wheel: zoom.</p>
-  <p>1–7: pick color. R: rotate camera.</p>
+  <p id="modeHelp">Left-click: place. Right-click: remove. Drag: pan. Wheel: zoom. 1–7: color. R: rotate.</p>
   <div id="palette"></div>
   <div id="actions">
+    <button id="playBtn" class="primary">Play</button>
     <button id="clear">Clear</button>
     <button id="save">Save PNG</button>
   </div>
 </div>
+
+<div id="hud">
+  <div class="label">Survived</div>
+  <div class="val"><span id="score">0</span>s</div>
+</div>
+
+<div id="gameover">
+  <div class="box">
+    <h2 id="goTitle">Game Over</h2>
+    <p id="goSub">A block landed on you.</p>
+    <button id="goAgain" class="primary">Play again</button>
+    <button id="goBuild">Back to build</button>
+  </div>
+</div>
+
 <div id="hint">A small collective coding experiment.</div>
 
 <canvas id="c"></canvas>
@@ -50,17 +85,16 @@
   const ctx = canvas.getContext('2d');
   let W = 0, H = 0, dpr = window.devicePixelRatio || 1;
 
-  const TILE = 48;                     // base tile width in pixels (before zoom)
-  const HEIGHT = 28;                   // vertical step per block
-  const GRID = 16;                     // grid radius
+  const TILE = 48;
+  const HEIGHT = 28;
+  const GRID = 12;
   let zoom = 1;
-  let camX = 0, camY = 0;              // pan offset in screen px
-  let rot = 0;                         // 0..3 quarter turns
+  let camX = 0, camY = 0;
+  let rot = 0;
 
   const COLORS = ['#f87171','#fbbf24','#34d399','#60a5fa','#a78bfa','#f472b6','#e5e7eb'];
   let active = 2;
 
-  // blocks: Map "x,y,z" -> color index
   const blocks = new Map();
   const key = (x,y,z) => `${x},${y},${z}`;
   const heightAt = (x,y) => {
@@ -68,11 +102,15 @@
     while (blocks.has(key(x,y,h))) h++;
     return h;
   };
+  const inBounds = (x,y) => x >= -GRID && x <= GRID && y >= -GRID && y <= GRID;
 
-  // ground plate
-  for (let x = -GRID; x <= GRID; x++)
-    for (let y = -GRID; y <= GRID; y++)
-      blocks.set(key(x,y,-1), 6);
+  function buildGround() {
+    blocks.clear();
+    for (let x = -GRID; x <= GRID; x++)
+      for (let y = -GRID; y <= GRID; y++)
+        blocks.set(key(x,y,-1), 6);
+  }
+  buildGround();
 
   function rotated(x, y) {
     switch (((rot % 4) + 4) % 4) {
@@ -80,14 +118,6 @@
       case 1: return [-y, x];
       case 2: return [-x, -y];
       case 3: return [y, -x];
-    }
-  }
-  function unrotated(x, y) {
-    switch (((rot % 4) + 4) % 4) {
-      case 0: return [x, y];
-      case 1: return [y, -x];
-      case 2: return [-x, -y];
-      case 3: return [-y, x];
     }
   }
 
@@ -108,10 +138,9 @@
 
   function drawBlock(x, y, z, ci) {
     const color = COLORS[ci];
-    const [tx, ty] = worldToScreen(x, y, z + 1);     // top corner reference
+    const [tx, ty] = worldToScreen(x, y, z + 1);
     const w = (TILE/2) * zoom, h = (TILE/4) * zoom, vh = HEIGHT * zoom;
 
-    // top face (diamond)
     ctx.fillStyle = shade(color, 1.0);
     ctx.beginPath();
     ctx.moveTo(tx, ty);
@@ -120,7 +149,6 @@
     ctx.lineTo(tx - w, ty + h);
     ctx.closePath(); ctx.fill();
 
-    // left face
     ctx.fillStyle = shade(color, 0.7);
     ctx.beginPath();
     ctx.moveTo(tx - w, ty + h);
@@ -129,7 +157,6 @@
     ctx.lineTo(tx - w, ty + h + vh);
     ctx.closePath(); ctx.fill();
 
-    // right face
     ctx.fillStyle = shade(color, 0.55);
     ctx.beginPath();
     ctx.moveTo(tx + w, ty + h);
@@ -138,7 +165,6 @@
     ctx.lineTo(tx + w, ty + h + vh);
     ctx.closePath(); ctx.fill();
 
-    // outline
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -148,25 +174,102 @@
     ctx.stroke();
   }
 
+  // -------- Entities --------
+  // Player: smooth-interpolated grid position. Falls off blocks if there's nothing under it.
+  const player = { x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, moving: false, alive: true };
+  // Monster: chases player on a slower schedule
+  const monster = { x: 6, y: 6, vx: 6, vy: 6, targetX: 6, targetY: 6, moving: false, stepCooldown: 0 };
+
+  // Falling blocks in mid-air: {x,y,z,ci}
+  const falling = [];
+
+  // -------- Game mode --------
+  let mode = 'build';            // 'build' | 'play'
+  let gameStart = 0;
+  let lastBlockSpawn = 0;
+  let spawnInterval = 900;       // ms
+  let lastT = 0;
+  let running = true;
+
+  function drawSprite(x, y, z, color, kind) {
+    // x,y can be fractional for smoothness
+    const [sx, sy] = worldToScreen(x, y, z);
+    const w = TILE * 0.35 * zoom;
+    const hgt = HEIGHT * 1.2 * zoom;
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, w * 0.9, w * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // body
+    if (kind === 'player') {
+      ctx.fillStyle = shade(color, 0.85);
+      ctx.fillRect(sx - w*0.5, sy - hgt, w, hgt);
+      ctx.fillStyle = color;
+      ctx.fillRect(sx - w*0.5, sy - hgt, w, hgt*0.55);
+      // eyes
+      ctx.fillStyle = '#0e1116';
+      ctx.fillRect(sx - w*0.25, sy - hgt*0.75, w*0.18, w*0.18);
+      ctx.fillRect(sx + w*0.07, sy - hgt*0.75, w*0.18, w*0.18);
+    } else {
+      // monster: jagged, two eyes
+      ctx.fillStyle = shade(color, 0.85);
+      const bx = sx - w*0.6, by = sy - hgt, bw = w*1.2, bh = hgt;
+      ctx.beginPath();
+      ctx.moveTo(bx, by + bh*0.2);
+      ctx.lineTo(bx + bw*0.15, by);
+      ctx.lineTo(bx + bw*0.35, by + bh*0.15);
+      ctx.lineTo(bx + bw*0.55, by);
+      ctx.lineTo(bx + bw*0.75, by + bh*0.15);
+      ctx.lineTo(bx + bw, by + bh*0.2);
+      ctx.lineTo(bx + bw, by + bh);
+      ctx.lineTo(bx, by + bh);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(bx + bw*0.2, by + bh*0.35, bw*0.18, bh*0.2);
+      ctx.fillRect(bx + bw*0.62, by + bh*0.35, bw*0.18, bh*0.2);
+      ctx.fillStyle = '#0e1116';
+      ctx.fillRect(bx + bw*0.25, by + bh*0.4, bw*0.08, bh*0.12);
+      ctx.fillRect(bx + bw*0.67, by + bh*0.4, bw*0.08, bh*0.12);
+    }
+  }
+
   function draw() {
     ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0,0,W,H);
 
-    // sort: back-to-front in rotated space
-    const list = [];
+    // collect renderables with sort key in rotated screen space
+    const items = [];
     for (const [k, ci] of blocks) {
       const [x,y,z] = k.split(',').map(Number);
       const [rx, ry] = rotated(x, y);
-      list.push({ x, y, z, ci, depth: rx + ry, zd: z });
+      items.push({ kind: 'block', depth: rx + ry + z * 0.001, z, draw: () => drawBlock(x,y,z,ci) });
     }
-    list.sort((a,b) => a.depth - b.depth || a.zd - b.zd);
-    for (const b of list) drawBlock(b.x, b.y, b.z, b.ci);
+    if (mode === 'play') {
+      const pz = heightAt(Math.round(player.x), Math.round(player.y));
+      const [prx, pry] = rotated(player.x, player.y);
+      items.push({ kind: 'player', depth: prx + pry + 0.5, z: pz,
+        draw: () => drawSprite(player.x, player.y, pz, '#60a5fa', 'player') });
+
+      const mz = heightAt(Math.round(monster.x), Math.round(monster.y));
+      const [mrx, mry] = rotated(monster.x, monster.y);
+      items.push({ kind: 'monster', depth: mrx + mry + 0.5, z: mz,
+        draw: () => drawSprite(monster.x, monster.y, mz, '#a855f7', 'monster') });
+
+      for (const f of falling) {
+        const [frx, fry] = rotated(f.x, f.y);
+        items.push({ kind: 'fall', depth: frx + fry + f.z * 0.001 - 1000,
+          draw: () => drawBlock(f.x, f.y, f.z, f.ci) });
+      }
+    }
+    items.sort((a,b) => a.depth - b.depth || (a.z||0) - (b.z||0));
+    for (const it of items) it.draw();
   }
 
-  // hit test: pick top tile under cursor
   function pick(mx, my) {
-    // try from high z down to 0
-    let best = null;
     for (let z = 12; z >= 0; z--) {
       for (let x = -GRID; x <= GRID; x++) {
         for (let y = -GRID; y <= GRID; y++) {
@@ -192,13 +295,14 @@
   }
   window.addEventListener('resize', resize);
 
-  // input
+  // -------- Build input --------
   let dragging = false, dragMoved = false, lastX = 0, lastY = 0;
   canvas.addEventListener('mousedown', (e) => {
+    if (mode !== 'build') return;
     dragging = true; dragMoved = false; lastX = e.clientX; lastY = e.clientY;
   });
   window.addEventListener('mouseup', (e) => {
-    if (!dragging) return;
+    if (!dragging || mode !== 'build') { dragging = false; return; }
     dragging = false;
     if (dragMoved) return;
     const hit = pick(e.clientX, e.clientY);
@@ -211,7 +315,7 @@
     draw();
   });
   window.addEventListener('mousemove', (e) => {
-    if (!dragging) return;
+    if (!dragging || mode !== 'build') return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
     camX += dx; camY += dy;
@@ -226,16 +330,38 @@
     draw();
   }, { passive: false });
 
-  window.addEventListener('keydown', (e) => {
-    if (e.key >= '1' && e.key <= '7') {
-      active = parseInt(e.key, 10) - 1;
-      renderPalette();
-    } else if (e.key === 'r' || e.key === 'R') {
-      rot = (rot + 1) % 4; draw();
+  // -------- Keyboard --------
+  // Arrow direction is in *rotated* (screen) space, so it always matches what the player sees.
+  function screenDirToWorld(dxs, dys) {
+    // inverse of rotated() for direction vector
+    const r = ((rot % 4) + 4) % 4;
+    switch (r) {
+      case 0: return [dxs, dys];
+      case 1: return [dys, -dxs];
+      case 2: return [-dxs, -dys];
+      case 3: return [-dys, dxs];
     }
+  }
+  function tryStepPlayer(dxs, dys) {
+    if (player.moving || !player.alive || mode !== 'play') return;
+    const [dx, dy] = screenDirToWorld(dxs, dys);
+    const nx = Math.round(player.x) + dx, ny = Math.round(player.y) + dy;
+    if (!inBounds(nx, ny)) return;
+    player.targetX = nx; player.targetY = ny; player.moving = true;
+  }
+  window.addEventListener('keydown', (e) => {
+    if (mode === 'build') {
+      if (e.key >= '1' && e.key <= '7') { active = parseInt(e.key, 10) - 1; renderPalette(); }
+      else if (e.key === 'r' || e.key === 'R') { rot = (rot + 1) % 4; draw(); }
+      return;
+    }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); tryStepPlayer(0, -1); }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); tryStepPlayer(0,  1); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); tryStepPlayer(-1, 0); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); tryStepPlayer( 1, 0); }
   });
 
-  // palette UI
+  // -------- Palette --------
   const palette = document.getElementById('palette');
   function renderPalette() {
     palette.innerHTML = '';
@@ -243,27 +369,160 @@
       const el = document.createElement('div');
       el.className = 'sw' + (i === active ? ' active' : '');
       el.style.background = c;
-      el.title = `${i+1}`;
       el.onclick = () => { active = i; renderPalette(); };
       palette.appendChild(el);
     });
   }
   renderPalette();
 
-  document.getElementById('clear').onclick = () => {
-    blocks.clear();
-    for (let x = -GRID; x <= GRID; x++)
-      for (let y = -GRID; y <= GRID; y++)
-        blocks.set(key(x,y,-1), 6);
-    draw();
-  };
+  // -------- Buttons --------
+  const playBtn = document.getElementById('playBtn');
+  const modeHelp = document.getElementById('modeHelp');
+  const hud = document.getElementById('hud');
+  const scoreEl = document.getElementById('score');
+  const gameover = document.getElementById('gameover');
+  const goTitle = document.getElementById('goTitle');
+  const goSub = document.getElementById('goSub');
+
+  function enterPlay() {
+    mode = 'play';
+    document.body.classList.add('play');
+    playBtn.textContent = 'Stop';
+    modeHelp.textContent = 'Arrow keys: move. Dodge falling blocks. The monster wants you.';
+    hud.style.display = 'block';
+    gameover.style.display = 'none';
+
+    player.x = 0; player.y = 0; player.targetX = 0; player.targetY = 0;
+    player.moving = false; player.alive = true;
+    monster.x = 8; monster.y = 8; monster.targetX = 8; monster.targetY = 8;
+    monster.moving = false; monster.stepCooldown = 0;
+    falling.length = 0;
+    gameStart = performance.now();
+    lastBlockSpawn = gameStart;
+  }
+  function enterBuild() {
+    mode = 'build';
+    document.body.classList.remove('play');
+    playBtn.textContent = 'Play';
+    modeHelp.textContent = 'Left-click: place. Right-click: remove. Drag: pan. Wheel: zoom. 1–7: color. R: rotate.';
+    hud.style.display = 'none';
+    gameover.style.display = 'none';
+  }
+  playBtn.onclick = () => { mode === 'build' ? enterPlay() : enterBuild(); };
+  document.getElementById('clear').onclick = () => { buildGround(); draw(); };
   document.getElementById('save').onclick = () => {
     const url = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = url; a.download = 'block-builder.png'; a.click();
   };
+  document.getElementById('goAgain').onclick = enterPlay;
+  document.getElementById('goBuild').onclick = enterBuild;
+
+  function endGame(reason) {
+    player.alive = false;
+    goTitle.textContent = 'Game Over';
+    goSub.textContent = reason;
+    gameover.style.display = 'flex';
+  }
+
+  // -------- Update loop --------
+  function spawnFalling(now) {
+    // Spawn one block at a random in-bounds column above the current stack.
+    const x = Math.floor(Math.random() * (GRID * 2 + 1)) - GRID;
+    const y = Math.floor(Math.random() * (GRID * 2 + 1)) - GRID;
+    const ci = Math.floor(Math.random() * (COLORS.length - 1)); // skip white/ground color
+    falling.push({ x, y, z: 12, ci });
+  }
+
+  function stepMonster() {
+    if (!player.alive) return;
+    if (monster.moving) return;
+    const dx = Math.sign(Math.round(player.x) - Math.round(monster.x));
+    const dy = Math.sign(Math.round(player.y) - Math.round(monster.y));
+    // alternate axis to avoid only moving one way
+    let nx = Math.round(monster.x), ny = Math.round(monster.y);
+    if (Math.abs(player.x - monster.x) > Math.abs(player.y - monster.y)) {
+      nx += dx;
+      if (!inBounds(nx, ny) || (nx === Math.round(monster.x) && dy)) { nx = Math.round(monster.x); ny += dy; }
+    } else {
+      ny += dy;
+      if (!inBounds(nx, ny) || (ny === Math.round(monster.y) && dx)) { ny = Math.round(monster.y); nx += dx; }
+    }
+    if (!inBounds(nx, ny)) return;
+    monster.targetX = nx; monster.targetY = ny; monster.moving = true;
+  }
+
+  function update(dt, now) {
+    if (mode !== 'play' || !player.alive) return;
+
+    // Player movement
+    const pspeed = 6; // tiles/sec
+    if (player.moving) {
+      const dx = player.targetX - player.x, dy = player.targetY - player.y;
+      const dist = Math.hypot(dx, dy);
+      const step = pspeed * dt;
+      if (dist <= step) { player.x = player.targetX; player.y = player.targetY; player.moving = false; }
+      else { player.x += dx / dist * step; player.y += dy / dist * step; }
+    }
+
+    // Monster movement and step pacing
+    const mspeed = 2.8;
+    if (monster.moving) {
+      const dx = monster.targetX - monster.x, dy = monster.targetY - monster.y;
+      const dist = Math.hypot(dx, dy);
+      const step = mspeed * dt;
+      if (dist <= step) { monster.x = monster.targetX; monster.y = monster.targetY; monster.moving = false; monster.stepCooldown = 0.15; }
+      else { monster.x += dx / dist * step; monster.y += dy / dist * step; }
+    } else {
+      monster.stepCooldown -= dt;
+      if (monster.stepCooldown <= 0) stepMonster();
+    }
+
+    // Catch check
+    if (Math.hypot(monster.x - player.x, monster.y - player.y) < 0.45) {
+      return endGame('The monster caught you.');
+    }
+
+    // Spawn falling blocks; ramp up difficulty
+    const elapsed = (now - gameStart) / 1000;
+    const interval = Math.max(220, spawnInterval - elapsed * 18);
+    while (now - lastBlockSpawn > interval) {
+      spawnFalling(now);
+      lastBlockSpawn += interval;
+    }
+
+    // Falling blocks descend
+    const fallSpeed = 5 + elapsed * 0.15; // z units / sec
+    for (let i = falling.length - 1; i >= 0; i--) {
+      const f = falling[i];
+      f.z -= fallSpeed * dt;
+      const landZ = heightAt(f.x, f.y);
+      if (f.z <= landZ) {
+        // Check if player or monster is here
+        const px = Math.round(player.x), py = Math.round(player.y);
+        if (f.x === px && f.y === py) {
+          falling.splice(i, 1);
+          return endGame('A block landed on you.');
+        }
+        blocks.set(key(f.x, f.y, landZ), f.ci);
+        falling.splice(i, 1);
+      }
+    }
+
+    scoreEl.textContent = Math.floor(elapsed).toString();
+  }
+
+  function tick(t) {
+    if (!lastT) lastT = t;
+    const dt = Math.min(0.05, (t - lastT) / 1000);
+    lastT = t;
+    update(dt, t);
+    draw();
+    requestAnimationFrame(tick);
+  }
 
   resize();
+  requestAnimationFrame(tick);
 })();
 </script>
 </body>
