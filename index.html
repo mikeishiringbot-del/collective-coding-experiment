@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Block Builder</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0e1116; color: #e6edf3;
+    font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; overflow: hidden; }
+  #ui {
+    position: fixed; top: 12px; left: 12px; z-index: 2;
+    background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 8px;
+    padding: 10px 12px; backdrop-filter: blur(6px); max-width: 280px;
+  }
+  #ui h1 { font-size: 14px; margin: 0 0 6px; font-weight: 600; }
+  #ui p { margin: 4px 0; color: #9da7b3; font-size: 12px; }
+  #palette { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .sw { width: 22px; height: 22px; border-radius: 4px; cursor: pointer;
+    border: 2px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+  .sw.active { border-color: #ffffff; }
+  #actions { display: flex; gap: 6px; margin-top: 10px; }
+  button { background: #21262d; color: #e6edf3; border: 1px solid #30363d;
+    padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit; }
+  button:hover { background: #30363d; }
+  #hint { position: fixed; bottom: 12px; left: 12px; z-index: 2;
+    color: #6e7681; font-size: 12px; }
+  canvas { display: block; cursor: crosshair; }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <h1>Block Builder</h1>
+  <p>Left-click: place. Right-click: remove. Drag: pan. Wheel: zoom.</p>
+  <p>1–7: pick color. R: rotate camera.</p>
+  <div id="palette"></div>
+  <div id="actions">
+    <button id="clear">Clear</button>
+    <button id="save">Save PNG</button>
+  </div>
+</div>
+<div id="hint">A small collective coding experiment.</div>
+
+<canvas id="c"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, dpr = window.devicePixelRatio || 1;
+
+  const TILE = 48;                     // base tile width in pixels (before zoom)
+  const HEIGHT = 28;                   // vertical step per block
+  const GRID = 16;                     // grid radius
+  let zoom = 1;
+  let camX = 0, camY = 0;              // pan offset in screen px
+  let rot = 0;                         // 0..3 quarter turns
+
+  const COLORS = ['#f87171','#fbbf24','#34d399','#60a5fa','#a78bfa','#f472b6','#e5e7eb'];
+  let active = 2;
+
+  // blocks: Map "x,y,z" -> color index
+  const blocks = new Map();
+  const key = (x,y,z) => `${x},${y},${z}`;
+  const heightAt = (x,y) => {
+    let h = 0;
+    while (blocks.has(key(x,y,h))) h++;
+    return h;
+  };
+
+  // ground plate
+  for (let x = -GRID; x <= GRID; x++)
+    for (let y = -GRID; y <= GRID; y++)
+      blocks.set(key(x,y,-1), 6);
+
+  function rotated(x, y) {
+    switch (((rot % 4) + 4) % 4) {
+      case 0: return [x, y];
+      case 1: return [-y, x];
+      case 2: return [-x, -y];
+      case 3: return [y, -x];
+    }
+  }
+  function unrotated(x, y) {
+    switch (((rot % 4) + 4) % 4) {
+      case 0: return [x, y];
+      case 1: return [y, -x];
+      case 2: return [-x, -y];
+      case 3: return [-y, x];
+    }
+  }
+
+  function worldToScreen(x, y, z) {
+    const [rx, ry] = rotated(x, y);
+    const sx = (rx - ry) * (TILE/2) * zoom + camX + W/2;
+    const sy = (rx + ry) * (TILE/4) * zoom - z * HEIGHT * zoom + camY + H/2;
+    return [sx, sy];
+  }
+
+  function shade(hex, k) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    const f = (v) => Math.max(0, Math.min(255, Math.round(v * k)));
+    return `rgb(${f(r)},${f(g)},${f(b)})`;
+  }
+
+  function drawBlock(x, y, z, ci) {
+    const color = COLORS[ci];
+    const [tx, ty] = worldToScreen(x, y, z + 1);     // top corner reference
+    const w = (TILE/2) * zoom, h = (TILE/4) * zoom, vh = HEIGHT * zoom;
+
+    // top face (diamond)
+    ctx.fillStyle = shade(color, 1.0);
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx + w, ty + h);
+    ctx.lineTo(tx, ty + 2*h);
+    ctx.lineTo(tx - w, ty + h);
+    ctx.closePath(); ctx.fill();
+
+    // left face
+    ctx.fillStyle = shade(color, 0.7);
+    ctx.beginPath();
+    ctx.moveTo(tx - w, ty + h);
+    ctx.lineTo(tx, ty + 2*h);
+    ctx.lineTo(tx, ty + 2*h + vh);
+    ctx.lineTo(tx - w, ty + h + vh);
+    ctx.closePath(); ctx.fill();
+
+    // right face
+    ctx.fillStyle = shade(color, 0.55);
+    ctx.beginPath();
+    ctx.moveTo(tx + w, ty + h);
+    ctx.lineTo(tx, ty + 2*h);
+    ctx.lineTo(tx, ty + 2*h + vh);
+    ctx.lineTo(tx + w, ty + h + vh);
+    ctx.closePath(); ctx.fill();
+
+    // outline
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty); ctx.lineTo(tx + w, ty + h);
+    ctx.lineTo(tx, ty + 2*h); ctx.lineTo(tx - w, ty + h); ctx.closePath();
+    ctx.moveTo(tx, ty + 2*h); ctx.lineTo(tx, ty + 2*h + vh);
+    ctx.stroke();
+  }
+
+  function draw() {
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,W,H);
+
+    // sort: back-to-front in rotated space
+    const list = [];
+    for (const [k, ci] of blocks) {
+      const [x,y,z] = k.split(',').map(Number);
+      const [rx, ry] = rotated(x, y);
+      list.push({ x, y, z, ci, depth: rx + ry, zd: z });
+    }
+    list.sort((a,b) => a.depth - b.depth || a.zd - b.zd);
+    for (const b of list) drawBlock(b.x, b.y, b.z, b.ci);
+  }
+
+  // hit test: pick top tile under cursor
+  function pick(mx, my) {
+    // try from high z down to 0
+    let best = null;
+    for (let z = 12; z >= 0; z--) {
+      for (let x = -GRID; x <= GRID; x++) {
+        for (let y = -GRID; y <= GRID; y++) {
+          if (!blocks.has(key(x,y,z))) continue;
+          const [sx, sy] = worldToScreen(x, y, z + 1);
+          const w = (TILE/2) * zoom, h = (TILE/4) * zoom;
+          const dx = mx - sx, dy = my - sy - h;
+          if (Math.abs(dx) / w + Math.abs(dy) / h <= 1) {
+            return { x, y, z };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    draw();
+  }
+  window.addEventListener('resize', resize);
+
+  // input
+  let dragging = false, dragMoved = false, lastX = 0, lastY = 0;
+  canvas.addEventListener('mousedown', (e) => {
+    dragging = true; dragMoved = false; lastX = e.clientX; lastY = e.clientY;
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (!dragging) return;
+    dragging = false;
+    if (dragMoved) return;
+    const hit = pick(e.clientX, e.clientY);
+    if (!hit) return;
+    if (e.button === 2) {
+      if (hit.z >= 0) blocks.delete(key(hit.x, hit.y, hit.z));
+    } else {
+      blocks.set(key(hit.x, hit.y, hit.z + 1), active);
+    }
+    draw();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
+    camX += dx; camY += dy;
+    lastX = e.clientX; lastY = e.clientY;
+    draw();
+  });
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * 0.001);
+    zoom = Math.max(0.4, Math.min(3, zoom * factor));
+    draw();
+  }, { passive: false });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key >= '1' && e.key <= '7') {
+      active = parseInt(e.key, 10) - 1;
+      renderPalette();
+    } else if (e.key === 'r' || e.key === 'R') {
+      rot = (rot + 1) % 4; draw();
+    }
+  });
+
+  // palette UI
+  const palette = document.getElementById('palette');
+  function renderPalette() {
+    palette.innerHTML = '';
+    COLORS.forEach((c, i) => {
+      const el = document.createElement('div');
+      el.className = 'sw' + (i === active ? ' active' : '');
+      el.style.background = c;
+      el.title = `${i+1}`;
+      el.onclick = () => { active = i; renderPalette(); };
+      palette.appendChild(el);
+    });
+  }
+  renderPalette();
+
+  document.getElementById('clear').onclick = () => {
+    blocks.clear();
+    for (let x = -GRID; x <= GRID; x++)
+      for (let y = -GRID; y <= GRID; y++)
+        blocks.set(key(x,y,-1), 6);
+    draw();
+  };
+  document.getElementById('save').onclick = () => {
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url; a.download = 'block-builder.png'; a.click();
+  };
+
+  resize();
+})();
+</script>
+</body>
+</html>
